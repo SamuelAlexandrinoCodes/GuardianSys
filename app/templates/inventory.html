@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h2 class="text-2xl font-bold text-slate-800">📦 Inventário & Almoxarifado</h2>
+            <p class="text-slate-500 text-sm">Controle de bens, estoque e patrimônio.</p>
+        </div>
+        <button onclick="document.getElementById('new-item-modal').classList.remove('hidden')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold shadow flex items-center gap-2">
+            <span>+</span> Novo Item
+        </button>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-50 text-slate-500 text-xs uppercase font-bold border-b border-slate-100">
+                <tr>
+                    <th class="px-6 py-4">Item / Categoria</th>
+                    <th class="px-6 py-4">Etiqueta</th>
+                    <th class="px-6 py-4">Localização</th>
+                    <th class="px-6 py-4 text-center">Qtd.</th>
+                    <th class="px-6 py-4 text-right">Ações</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50 text-sm">
+                {% for item in items %}
+                <tr class="hover:bg-slate-50 transition group">
+                    <td class="px-6 py-4">
+                        <div hx-get="/inventory/{{ item.id }}/edit_field/name" hx-trigger="click" hx-swap="outerHTML" class="font-bold text-slate-800 cursor-pointer hover:text-indigo-600">{{ item.name }}</div>
+                        <div hx-get="/inventory/{{ item.id }}/edit_field/category" hx-trigger="click" hx-swap="outerHTML" class="text-xs text-slate-400 uppercase cursor-pointer hover:text-indigo-600">{{ item.category }}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div hx-get="/inventory/{{ item.id }}/edit_field/label_code" hx-trigger="click" hx-swap="outerHTML" class="bg-slate-100 text-slate-600 px-2 py-1 rounded font-mono text-xs inline-block cursor-pointer hover:bg-slate-200">{{ item.label_code or 'S/ Etiqueta' }}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div hx-get="/inventory/{{ item.id }}/edit_field/location" hx-trigger="click" hx-swap="outerHTML" class="text-slate-600 cursor-pointer hover:text-indigo-600">{{ item.location or '-' }}</div>
+                    </td>
+                    <td class="px-6 py-4 text-center font-bold text-slate-700">
+                        <div hx-get="/inventory/{{ item.id }}/edit_field/quantity" hx-trigger="click" hx-swap="outerHTML" class="cursor-pointer hover:text-indigo-600">{{ item.quantity }}</div>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <button hx-delete="/inventory/{{ item.id }}" hx-target="closest tr" hx-swap="outerHTML" class="text-slate-300 hover:text-red-500 transition p-2 rounded hover:bg-red-50">🗑️</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="new-item-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="font-bold text-lg text-slate-800 mb-4">Adicionar ao Estoque</h3>
+        <form action="/inventory/create" method="POST" class="space-y-4">
+            <input type="text" name="name" placeholder="Nome do Item (Ex: Lâmpada LED)" class="w-full border p-2 rounded" required>
+            <div class="grid grid-cols-2 gap-4">
+                <input type="text" name="category" placeholder="Categoria" class="w-full border p-2 rounded">
+                <input type="text" name="label_code" placeholder="Cód. Etiqueta" class="w-full border p-2 rounded">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <input type="number" name="quantity" placeholder="Quantidade" class="w-full border p-2 rounded" required>
+                <input type="text" name="location" placeholder="Localização" class="w-full border p-2 rounded">
+            </div>
+            <div class="flex justify-end gap-2 pt-4">
+                <button type="button" onclick="document.getElementById('new-item-modal').classList.add('hidden')" class="px-4 py-2 text-slate-500">Cancelar</button>
+                <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded font-bold">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% if units or residents %}
+    {% if units %}
+    <div class="bg-slate-50 px-4 py-2 text-xs font-bold text-slate-500 uppercase">Unidades</div>
+    <ul>
+        {% for unit in units %}
+        <li>
+            <a href="/unit/{{ unit.id }}" class="block px-4 py-2 hover:bg-indigo-50 text-slate-700 border-b border-slate-50">
+                🏢 Bloco {{ unit.block }} - Apto {{ unit.number }}
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if residents %}
+    <div class="bg-slate-50 px-4 py-2 text-xs font-bold text-slate-500 uppercase">Moradores</div>
+    <ul>
+        {% for res in residents %}
+        <li>
+            <a href="/unit/{{ res.unit_id }}" class="block px-4 py-2 hover:bg-indigo-50 text-slate-700 border-b border-slate-50 flex justify-between">
+                <span>👤 {{ res.full_name }}</span>
+                <span class="text-xs text-slate-400 bg-white px-2 rounded border">{{ res.profile_type }}</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+{% else %}
+    <div class="p-4 text-center text-slate-400 text-sm">Nenhum resultado encontrado no radar.</div>
+{% endif %}

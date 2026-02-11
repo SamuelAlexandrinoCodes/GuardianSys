@@ -1,0 +1,244 @@
+<div id="nav-data" 
+     data-next="{{ nav.next.id if nav.next else '' }}" 
+     data-prev="{{ nav.prev.id if nav.prev else '' }}"
+     data-up="{{ nav.up.id if nav.up else '' }}"
+     data-down="{{ nav.down.id if nav.down else '' }}"
+     class="hidden"></div>
+
+{% if nav.prev %}
+<div hx-get="/unit/{{ nav.prev.id }}" hx-target="#unit-main-content" hx-swap="innerHTML"
+     class="fixed left-0 md:left-72 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white p-3 rounded-r-xl shadow-lg border border-slate-200 text-slate-400 hover:text-indigo-600 transition z-40 group cursor-pointer" title="Anterior">
+    <span class="text-2xl font-bold">‹</span>
+    <span class="absolute left-14 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none">Apto {{ nav.prev.number }}</span>
+</div>
+{% endif %}
+
+{% if nav.next %}
+<div hx-get="/unit/{{ nav.next.id }}" hx-target="#unit-main-content" hx-swap="innerHTML"
+     class="fixed right-0 md:right-8 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white p-3 rounded-l-xl shadow-lg border border-slate-200 text-slate-400 hover:text-indigo-600 transition z-40 group cursor-pointer" title="Próximo">
+    <span class="text-2xl font-bold">›</span>
+    <span class="absolute right-14 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none">Apto {{ nav.next.number }}</span>
+</div>
+{% endif %}
+
+<div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6 flex justify-between items-center relative overflow-hidden animate-fade-in">
+    <div class="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+        <span class="text-9xl font-black text-slate-900">{{ unit.number }}</span>
+    </div>
+    <div>
+        <h2 class="text-3xl font-bold text-slate-800 tracking-tight">Apto {{ unit.number }}</h2>
+        </div>
+    <div class="text-right z-10">
+        <span class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Status</span>
+        {% set status_colors = {"Ocupado": "bg-green-100 text-green-700 border-green-200", "Vazio": "bg-slate-100 text-slate-500 border-slate-200", "Invadido": "bg-red-600 text-white border-red-700 animate-pulse"} %}
+        {% set current_color = status_colors.get(unit.status, "bg-slate-100") %}
+        <div hx-post="/unit/{{ unit.id }}/update_status" hx-swap="outerHTML"
+             class="{{ current_color }} px-3 py-1 rounded-full text-xs font-bold border cursor-pointer select-none relative group text-center w-24 hover:scale-105 transition">
+            {{ unit.status }}
+        </div>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6 animate-fade-in">
+    <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+        <h3 class="font-bold text-slate-700 flex items-center gap-2">
+            👥 Lista de Ocupantes
+            <span class="bg-slate-200 text-slate-600 text-xs px-2 py-0.5 rounded-full">{{ residents|length }}</span>
+        </h3>
+        <button hx-get="/unit/{{ unit.id }}/add_resident" hx-target="#modal-container" hx-trigger="click"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm shadow font-medium transition hover:scale-105">
+            + Adicionar
+        </button>
+    </div>
+
+    <table class="w-full text-left border-collapse">
+        <thead>
+            <tr class="text-slate-400 text-[10px] font-bold uppercase bg-white border-b tracking-wider">
+                <th class="px-4 py-3 pl-6">Nome / Perfil</th> 
+                <th class="px-2 py-3 text-center">Nascimento</th>
+                <th class="px-4 py-3">Contato</th> 
+                <th class="px-2 py-3 text-center w-32">Piscina</th>
+                <th class="px-2 py-3 text-right pr-6 w-32">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="text-sm divide-y divide-slate-50">
+            {% for res in residents %}
+            <tr id="resident-row-{{ res.id }}" class="hover:bg-slate-50 transition group">
+                <td class="px-4 py-3 pl-6 align-middle">
+                    <div class="flex items-start gap-3">
+                        <div class="relative group w-10 h-10 flex-shrink-0">
+                            <div class="w-10 h-10 rounded-full bg-slate-200 border-2 border-white shadow-sm overflow-hidden flex items-center justify-center">
+                                {% if res.photo_path %}
+                                    <img src="/{{ res.photo_path }}" class="w-full h-full object-cover">
+                                {% else %}
+                                    <span class="text-xs text-slate-400">📷</span>
+                                {% endif %}
+                            </div>
+                            <form action="/resident/{{ res.id }}/upload_photo" method="POST" enctype="multipart/form-data" class="absolute inset-0 opacity-0 group-hover:opacity-100 transition cursor-pointer">
+                                <label class="w-full h-full bg-black bg-opacity-50 rounded-full flex items-center justify-center cursor-pointer text-white text-[8px]">UP
+                                    <input type="file" name="photo" onchange="this.form.submit()" class="hidden" accept="image/*">
+                                </label>
+                            </form>
+                        </div>
+                        <div>
+                            <div hx-get="/resident/{{ res.id }}/edit_name" hx-trigger="click" hx-swap="outerHTML" class="cursor-pointer font-bold text-slate-700 hover:text-indigo-600 text-sm mb-1">{{ res.full_name }}</div>
+                            {% set profile_colors = {"PROPRIETARIO": "bg-blue-100 text-blue-700 border-blue-200", "INQUILINO": "bg-orange-100 text-orange-700 border-orange-200"} %}
+                            {% set p_color = profile_colors.get(res.profile_type, "bg-slate-100") %}
+                            <div hx-post="/resident/{{ res.id }}/toggle_profile" 
+                                 hx-swap="outerHTML" 
+                                 class="cursor-pointer {{ p_color }} px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border inline-block select-none hover:opacity-80 transition"
+                                 title="Clique para alternar">
+                                {{ res.profile_type }}
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td class="px-2 py-3 text-center align-middle">
+                    <div hx-get="/resident/{{ res.id }}/edit_date" hx-trigger="click" hx-swap="innerHTML" class="cursor-pointer hover:bg-slate-100 p-1 rounded text-slate-600 text-xs">{{ res.birth_date.strftime('%d/%m/%Y') }}</div>
+                </td>
+                <td class="px-4 py-3 align-middle">
+                    <div class="flex flex-col gap-1">
+                        <div hx-get="/resident/{{ res.id }}/edit_field/phone" hx-trigger="click" hx-swap="outerHTML" class="cursor-pointer hover:text-indigo-600 hover:bg-slate-100 px-1 rounded text-slate-700 text-xs font-medium flex items-center gap-1">📱 {{ res.phone or 'S/ Tel' }}</div>
+                        <div hx-get="/resident/{{ res.id }}/edit_field/email" hx-trigger="click" hx-swap="outerHTML" class="cursor-pointer hover:text-indigo-600 hover:bg-slate-100 px-1 rounded text-slate-400 text-[10px] truncate max-w-[140px]" title="{{ res.email }}">📧 {{ res.email or 'S/ Email' }}</div>
+                    </div>
+                </td>
+                <td id="pool-status-{{ res.id }}" class="px-2 py-3 text-center align-middle" hx-get="/resident/{{ res.id }}/pool_status" hx-trigger="load"><span class="text-[10px] text-slate-300">...</span></td>
+                <td class="px-2 py-3 text-right pr-6 align-middle">
+                   <div class="flex flex-col gap-1.5 items-end">
+                        <button hx-post="/resident/{{ res.id }}/toggle_pcd" hx-swap="outerHTML" 
+                                class="flex items-center justify-end gap-2 w-full group transition opacity-70 hover:opacity-100">
+                            <span class="text-[10px] font-bold text-slate-400 group-hover:text-blue-600 transition">PCD</span>
+                            <span class="{{ 'bg-blue-100 text-blue-600 border-blue-200' if res.is_pcd else 'bg-slate-50 text-slate-300 border-slate-100 grayscale' }} border p-1 rounded-md text-xs w-6 h-6 flex items-center justify-center">♿</span>
+                        </button>
+                        <button hx-get="/resident/{{ res.id }}/obs_modal" hx-target="#modal-container" 
+                                class="flex items-center justify-end gap-2 w-full group transition opacity-70 hover:opacity-100">
+                            <span class="text-[10px] font-bold text-slate-400 group-hover:text-yellow-600 transition">Observações</span>
+                            <span class="{{ 'bg-yellow-100 text-yellow-600 border-yellow-200' if res.observations else 'bg-slate-50 text-slate-300 border-slate-100' }} border p-1 rounded-md text-xs w-6 h-6 flex items-center justify-center">📝</span>
+                        </button>
+                        <button type="button" onclick="confirmAction('/resident/{{ res.id }}', '#resident-row-{{ res.id }}', 'Excluir?', 'Remover {{ res.full_name }}?')" 
+                                class="flex items-center justify-end gap-2 w-full group transition opacity-70 hover:opacity-100">
+                            <span class="text-[10px] font-bold text-slate-400 group-hover:text-red-600 transition">Deletar</span>
+                            <span class="bg-white hover:bg-red-50 text-slate-300 hover:text-red-500 border border-slate-100 hover:border-red-200 p-1 rounded-md text-xs w-6 h-6 flex items-center justify-center">✕</span>
+                        </button>
+                   </div>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not residents %}
+            <tr><td colspan="5" class="px-6 py-8 text-center text-slate-400 text-xs uppercase tracking-wide">Unidade Vazia</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 animate-fade-in">
+    
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="bg-slate-50 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2">🚗 Veículos <span class="text-xs text-slate-400 font-normal">({{ vehicles|length }})</span></h3>
+            <button hx-get="/unit/{{ unit.id }}/add_vehicle_modal" hx-target="#modal-container" class="text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded text-xs font-bold">+ Adicionar</button>
+        </div>
+        <table class="w-full text-left text-sm">
+            <thead class="bg-white border-b border-slate-50 text-[9px] uppercase text-slate-400 font-bold">
+                <tr><th class="px-4 py-2">Modelo / Tipo</th><th class="px-2 py-2">Placa</th><th class="px-2 py-2">Tag</th><th class="px-2 py-2 text-right">Ação</th></tr>
+            </thead>
+            <tbody>
+            {% for v in vehicles %}
+            <tr id="vehicle-row-{{ v.id }}" class="border-b border-slate-50 last:border-0 hover:bg-slate-50">
+                <td class="px-4 py-2 align-middle">
+                    <div hx-get="/vehicle/{{ v.id }}/edit/model" hx-trigger="click" hx-swap="outerHTML" class="font-bold text-slate-700 cursor-pointer hover:text-indigo-600">{{ v.model }}</div>
+                    <div class="text-[10px] text-slate-400 uppercase">{{ v.type }}</div>
+                </td>
+                <td class="px-2 py-2 align-middle">
+                    <div hx-get="/vehicle/{{ v.id }}/edit/plate" hx-trigger="click" hx-swap="outerHTML" class="cursor-pointer hover:text-indigo-600 text-slate-600 font-mono text-xs">{{ v.plate }}</div>
+                </td>
+                <td class="px-2 py-2 align-middle">
+                    <div hx-get="/vehicle/{{ v.id }}/edit/tag" hx-trigger="click" hx-swap="outerHTML" class="cursor-pointer hover:text-indigo-600 text-xs bg-yellow-50 text-yellow-700 px-1 rounded border border-yellow-100 inline-block">{{ v.tag or 'S/ Tag' }}</div>
+                </td>
+                <td class="px-2 py-2 text-right align-middle">
+                    <button onclick="confirmAction('/vehicle/{{ v.id }}', '#vehicle-row-{{ v.id }}', 'Remover?', 'Apagar {{ v.model }}?')" class="text-slate-300 hover:text-red-500 p-1 hover:bg-red-50 rounded">✕</button>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not vehicles %}<tr><td colspan="4" class="p-6 text-center text-slate-300 text-xs italic">Nenhum veículo cadastrado.</td></tr>{% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="bg-slate-50 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2">🐾 Pets <span class="text-xs text-slate-400 font-normal">({{ pets|length }})</span></h3>
+            <button hx-get="/unit/{{ unit.id }}/add_pet_modal" hx-target="#modal-container" class="text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded text-xs font-bold">+ Adicionar</button>
+        </div>
+        <table class="w-full text-left text-sm">
+            <thead class="bg-white border-b border-slate-50 text-[9px] uppercase text-slate-400 font-bold">
+                <tr><th class="px-4 py-2">Nome / Raça</th><th class="px-2 py-2">Obs</th><th class="px-2 py-2 text-right">Ação</th></tr>
+            </thead>
+            <tbody>
+            {% for p in pets %}
+            <tr id="pet-row-{{ p.id }}" class="border-b border-slate-50 last:border-0 hover:bg-slate-50">
+                <td class="px-4 py-2 align-middle">
+                    <div hx-get="/pet/{{ p.id }}/edit/name" hx-trigger="click" hx-swap="outerHTML" class="font-bold text-slate-700 cursor-pointer hover:text-indigo-600">{{ p.name }}</div>
+                    <div hx-get="/pet/{{ p.id }}/edit/breed" hx-trigger="click" hx-swap="outerHTML" class="text-[10px] text-slate-400 uppercase cursor-pointer hover:text-indigo-600">{{ p.breed }}</div>
+                </td>
+                <td class="px-2 py-2 align-middle">
+                    <div hx-get="/pet/{{ p.id }}/edit/notes" hx-trigger="click" hx-swap="outerHTML" class="text-[10px] text-slate-500 italic mr-2 cursor-pointer hover:text-indigo-600">{{ p.notes or 'S/ Obs' }}</div>
+                </td>
+                <td class="px-2 py-2 text-right align-middle">
+                    <button onclick="confirmAction('/pet/{{ p.id }}', '#pet-row-{{ p.id }}', 'Remover?', 'Apagar {{ p.name }}?')" class="text-slate-300 hover:text-red-500 p-1 hover:bg-red-50 rounded">✕</button>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not pets %}<tr><td colspan="3" class="p-6 text-center text-slate-300 text-xs italic">Nenhum pet cadastrado.</td></tr>{% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 animate-fade-in">
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-4">📂 Pasta Digital</h3>
+        <form action="/unit/{{ unit.id }}/upload" method="POST" enctype="multipart/form-data" class="mb-4 flex gap-2">
+            <input type="file" name="file" required class="block w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+            <button type="submit" class="bg-indigo-600 text-white px-4 py-1 rounded text-xs font-bold shadow hover:bg-indigo-700">Enviar</button>
+        </form>
+        <ul class="space-y-2 max-h-48 overflow-auto">
+            {% for doc in documents %}
+            <li id="doc-item-{{ doc.id }}" class="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-100 text-sm">
+                <a href="/{{ doc.filepath }}" target="_blank" class="text-indigo-600 hover:underline truncate w-64 flex items-center gap-2">📄 {{ doc.filename }}</a>
+                <button type="button" onclick="confirmAction('/document/{{ doc.id }}', '#doc-item-{{ doc.id }}', 'Excluir Arquivo?', 'O arquivo {{ doc.filename }} será apagado permanentemente.')" class="text-slate-300 hover:text-red-600 font-bold p-1 hover:bg-red-50 rounded transition">✕</button>
+            </li>
+            {% endfor %}
+            {% if not documents %}
+            <li class="text-center text-xs text-slate-400 py-4 italic">Nenhum documento arquivado.</li>
+            {% endif %}
+        </ul>
+    </div>
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-slate-700">📅 Próximas Reservas</h3>
+            <a href="/reservations?form_unit={{ unit.number }}&modal=open" class="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-1 rounded border border-indigo-100 font-bold hover:bg-indigo-100 transition">+ Nova</a>
+        </div>
+        {% if unit_reservations %}
+        <div class="space-y-2 max-h-48 overflow-auto pr-1">
+            {% for res in unit_reservations %}
+            <div class="flex items-center gap-3 p-2 bg-slate-50 rounded border border-slate-100 text-sm">
+                <div class="bg-white border {{ 'border-orange-200 text-orange-600' if res.area_name == 'CHURRASQUEIRA' else 'border-purple-200 text-purple-600' }} rounded-lg p-2 text-center w-12 shadow-sm">
+                    <span class="block text-xs font-bold">{{ res.reservation_date.day }}</span>
+                    <span class="block text-[8px] uppercase">{{ res.reservation_date.strftime('%b') }}</span>
+                </div>
+                <div>
+                    <div class="font-bold text-slate-700">{{ res.area_name.replace('_', ' ').title() }}</div>
+                    <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wide">{{ res.status }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-6 opacity-50">
+            <div class="text-2xl mb-1">📆</div>
+            <p class="text-xs text-slate-400">Nenhuma reserva futura.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>

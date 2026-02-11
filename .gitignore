@@ -1,0 +1,18 @@
+# Bancos de Dados
+data/
+*.db
+*.sqlite3
+
+# Arquivos de Upload (Fotos e Docs)
+storage/
+
+# Arquivos de Compilação e Cache
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+
+# Pastas de Ambiente Virtual (caso tenha)
+venv/
+env/

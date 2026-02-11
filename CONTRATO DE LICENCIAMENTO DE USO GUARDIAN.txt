@@ -1,0 +1,32 @@
+CONTRATO DE LICENCIAMENTO DE USO DE SOFTWARE E PRESTAÇÃO DE SERVIÇOS
+IDENTIFICAÇÃO DAS PARTES
+
+CONTRATADA (Desenvolvedor): [SEU NOME COMPLETO], inscrito no CPF nº [SEU CPF], operando sob o CNPJ [SEU CNPJ MEI], doravante denominado DESENVOLVEDOR.
+
+CONTRATANTE (Cliente): [NOME DO WADSON], inscrito no CPF nº [CPF DELE], residente em [ENDEREÇO DO PRÉDIO], doravante denominado LICENCIADO.
+
+CLÁUSULA 1 – DO OBJETO O presente contrato tem como objeto a concessão de LICENÇA DE USO (não exclusiva e intransferível) do software denominado "GUARDIAN SYS", desenvolvido pelo DESENVOLVEDOR, para fins de gestão administrativa e controle de acesso no endereço do LICENCIADO.
+
+Parágrafo Único: O código-fonte, a estrutura lógica, a marca "Guardian Sys" e toda a propriedade intelectual do sistema permanecem sendo de propriedade exclusiva do DESENVOLVEDOR. A entrega do executável não implica, em hipótese alguma, na transferência da propriedade do software.
+
+CLÁUSULA 2 – DO VALOR E PAGAMENTO Pela licença de uso vitalícia (nesta versão) e instalação do software, o LICENCIADO pagará ao DESENVOLVEDOR a quantia única de R$ 600,00 (Seiscentos reais).
+
+CLÁUSULA 3 – DA GARANTIA E SUPORTE TÉCNICO O DESENVOLVEDOR oferece uma garantia técnica de 90 (noventa) dias, contados a partir da data de assinatura deste contrato.
+
+3.1. A garantia cobre exclusivamente: correção de "bugs", falhas de funcionamento, erros de cálculo ou fechamento inesperado do sistema.
+
+3.2. A garantia NÃO cobre: problemas causados por vírus no computador do cliente, formatação da máquina, danos ao hardware, ou mau uso do sistema.
+
+3.3. Solicitações de novas funcionalidades, botões extras ou alterações de layout que não estavam no escopo original serão cobradas à parte, mediante novo orçamento.
+
+CLÁUSULA 4 – DAS PROIBIÇÕES (PROTEÇÃO DE CÓDIGO) Fica expressamente PROIBIDO ao LICENCIADO: I. Copiar, distribuir, vender, alugar ou sublicenciar o software para terceiros ou outros condomínios/prédios. II. Tentar realizar engenharia reversa, descompilar ou modificar o código do sistema.
+
+CLÁUSULA 5 – DISPOSIÇÕES GERAIS O software é entregue "como está". O DESENVOLVEDOR não se responsabiliza por dados inseridos incorretamente pelos operadores do sistema.
+
+E por estarem justos e contratados, assinam o presente instrumento em 02 (duas) vias de igual teor.
+
+[CIDADE - UF], [DATA DE HOJE].
+
+ASSINATURA DO DESENVOLVEDOR (Seu Nome)
+
+ASSINATURA DO CLIENTE (Nome do Wadson)

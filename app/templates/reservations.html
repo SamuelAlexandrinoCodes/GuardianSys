@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-full">
+    
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h2 class="text-3xl font-bold text-slate-800 tracking-tight">📅 Agenda de Reservas</h2>
+            <p class="text-slate-500 text-sm">Gerencie o uso das áreas comuns e pagamentos.</p>
+        </div>
+        <button onclick="openModal()" 
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-indigo-200 transition flex items-center gap-2">
+            <span>+</span> Nova Reserva
+        </button>
+    </div>
+
+    <div class="flex space-x-2 bg-slate-100 p-1.5 rounded-xl mb-6 w-fit border border-slate-200">
+        <a href="/reservations?tab=churrasqueira" 
+           class="px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition flex items-center gap-2 {{ 'bg-yellow-100 text-yellow-700 shadow-sm border border-yellow-200' if active_tab == 'churrasqueira' else 'text-slate-500 hover:text-slate-700 hover:bg-white' }}">
+           <span>🥩</span> Churrasqueira
+        </a>
+        <a href="/reservations?tab=salao" 
+           class="px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition flex items-center gap-2 {{ 'bg-blue-100 text-blue-700 shadow-sm border border-blue-200' if active_tab == 'salao' else 'text-slate-500 hover:text-slate-700 hover:bg-white' }}">
+           <span>🎉</span> Salão de Festas
+        </a>
+        <a href="/reservations?tab=gourmet" 
+           class="px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition flex items-center gap-2 {{ 'bg-purple-100 text-purple-700 shadow-sm border border-purple-200' if active_tab == 'gourmet' else 'text-slate-500 hover:text-slate-700 hover:bg-white' }}">
+           <span>🍷</span> Salão Gourmet
+        </a>
+        <a href="/reservations?tab=historico" 
+           class="px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition flex items-center gap-2 {{ 'bg-white text-slate-700 shadow-sm border border-slate-200' if active_tab == 'historico' else 'text-slate-500 hover:text-slate-700 hover:bg-white' }}">
+           <span>📂</span> Histórico
+        </a>
+    </div>
+
+    <div class="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col relative">
+        {% if reservations %}
+        <div class="overflow-y-auto flex-1 p-0">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-50 sticky top-0 z-10 text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100 tracking-wider">
+                    <tr>
+                        <th class="px-6 py-4">Data / Local</th>
+                        <th class="px-6 py-4">Responsável</th>
+                        <th class="px-6 py-4 text-center">Status Financeiro</th>
+                        <th class="px-6 py-4 text-right">Ações Rápidas</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50 text-sm">
+                    {% for res in reservations %}
+                    <tr class="hover:bg-slate-50 transition group">
+                        <td class="px-6 py-4 align-middle">
+                            <div class="flex flex-col">
+                                <span class="font-bold text-slate-800 text-base">{{ res.reservation_date.strftime('%d/%m/%Y') }}</span>
+                                <span class="text-[10px] text-slate-400 uppercase font-bold">{{ res.reservation_date.strftime('%A') }}</span>
+                                
+                                <div class="mt-2 flex gap-1">
+                                    {% if res.area_name == 'CHURRASQUEIRA' %}
+                                        <span class="text-[9px] font-bold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded border border-yellow-100">CHURRASQUEIRA</span>
+                                    {% elif res.area_name == 'SALAO_FESTAS' %}
+                                        <span class="text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">SALÃO FESTAS</span>
+                                    {% else %}
+                                        <span class="text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">GOURMET</span>
+                                    {% endif %}
+                                    <a href="/unit/{{ res.unit.id }}" class="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 hover:bg-slate-200">APTO {{ res.unit.number }}</a>
+                                </div>
+                            </div>
+                        </td>
+
+                        <td class="px-6 py-4 align-middle">
+                            {% if res.resident %}
+                                <div class="font-bold text-slate-700">{{ res.resident.full_name }}</div>
+                                {% if res.resident.phone %}
+                                    <a href="https://wa.me/55{{ res.resident.phone|replace(' ', '')|replace('-', '')|replace('(', '')|replace(')', '') }}" target="_blank" 
+                                       class="text-green-600 hover:text-green-700 text-xs flex items-center gap-1 mt-1 font-bold w-fit bg-green-50 px-2 py-1 rounded-full border border-green-100 hover:border-green-300 transition">
+                                        <span>📱</span> WhatsApp
+                                    </a>
+                                {% else %}
+                                    <span class="text-xs text-slate-400 italic">Sem telefone</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-red-400 text-xs italic">Não vinculado</span>
+                            {% endif %}
+                        </td>
+
+                        <td class="px-6 py-4 text-center align-middle">
+                            {% if res.status == 'CANCELADA' %}
+                                <span class="bg-slate-100 text-slate-400 px-3 py-1 rounded-full text-xs font-bold border border-slate-200 line-through">CANCELADA</span>
+                                <div class="text-[9px] text-slate-400 mt-1">por {{ res.cancelled_by }}</div>
+                            {% else %}
+                                {% set status_colors = {
+                                    "Fazer boleto": "bg-red-100 text-red-700 border-red-200",
+                                    "Aguardando Boleto": "bg-yellow-100 text-yellow-700 border-yellow-200",
+                                    "Aguardando Pagamento": "bg-orange-100 text-orange-700 border-orange-200",
+                                    "Pago/Confirmado": "bg-green-100 text-green-700 border-green-200"
+                                } %}
+                                {% set css = status_colors.get(res.status, "bg-slate-100") %}
+                                <button hx-post="/reservation/{{ res.id }}/advance_status" hx-swap="outerHTML" 
+                                        class="{{ css }} px-3 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wide hover:scale-105 transition shadow-sm whitespace-nowrap"
+                                        title="Clique para avançar etapa">
+                                    {{ res.status }}
+                                </button>
+                            {% endif %}
+                        </td>
+
+                        <td class="px-6 py-4 text-right align-middle">
+                            <div class="flex justify-end gap-2">
+                                <a href="mailto:financeiro@corretora.com.br?subject=Solicitação de Boleto - {{ res.area_name }} - {{ res.reservation_date }}&body=Prezados,%0D%0A%0D%0ASolicito boleto para a reserva:%0D%0AUnidade: {{ res.unit.number }}%0D%0AMorador: {{ res.resident.full_name if res.resident else 'N/A' }}%0D%0AData: {{ res.reservation_date }}%0D%0AÁrea: {{ res.area_name }}%0D%0A%0D%0AGrato."
+                                   class="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-200 transition" title="Solicitar Boleto por Email">
+                                    📧
+                                </a>
+                                
+                                <a href="/reservation/{{ res.id }}/print" target="_blank"
+                                   class="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 border border-slate-200 transition" title="Imprimir Termo">
+                                    🖨️
+                                </a>
+
+                                {% if res.status != 'CANCELADA' %}
+                                <button onclick="openCancelModal('{{ res.id }}', '{{ res.reservation_date.strftime('%d/%m/%Y') }} - Apto {{ res.unit.number }}')" 
+                                        class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 border border-red-200 transition" title="Cancelar">
+                                    ✕
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="flex-1 flex flex-col items-center justify-center opacity-40">
+            <div class="text-6xl mb-4">📅</div>
+            <h3 class="text-xl font-bold text-slate-800">Agenda Livre</h3>
+            <p class="text-slate-500">Nenhuma reserva encontrada nesta visão.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div id="new-res-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm {{ 'hidden' if not request.query_params.get('modal') }}">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in">
+        <h3 class="font-bold text-lg text-slate-800 mb-4">Nova Reserva</h3>
+        
+        {% if request.query_params.get('error') == 'conflict' %}
+        <div class="bg-red-50 text-red-700 p-3 rounded text-sm mb-4 border border-red-200 font-bold">⚠️ Data indisponível para esta área!</div>
+        {% elif request.query_params.get('error') == 'unit_not_found' %}
+        <div class="bg-red-50 text-red-700 p-3 rounded text-sm mb-4 border border-red-200 font-bold">🚫 Unidade não encontrada!</div>
+        {% elif request.query_params.get('error') == 'past_date' %}
+        <div class="bg-orange-50 text-orange-700 p-3 rounded text-sm mb-4 border border-orange-200 font-bold">🕰️ Não é possível reservar datas passadas.</div>
+        {% endif %}
+
+        <form action="/reservations/create" method="POST" class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Unidade</label>
+                    <input type="text" name="unit_number" placeholder="Ex: 105" required 
+                           value="{{ request.query_params.get('form_unit', '') }}"
+                           class="w-full border p-2 rounded focus:ring-2 focus:ring-indigo-500 outline-none font-mono font-bold text-lg"
+                           hx-get="/reservations/residents_options" 
+                           hx-trigger="keyup changed delay:500ms" 
+                           hx-target="#resident-select">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Data</label>
+                    <input type="date" name="reservation_date" required 
+                           value="{{ request.query_params.get('form_date', today.isoformat()) }}"
+                           class="w-full border p-2 rounded">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Responsável</label>
+                <select name="resident_id" id="resident-select" class="w-full border p-2 rounded bg-slate-50" required>
+                    <option value="">Digite a unidade primeiro...</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Área</label>
+                <select name="area_name" class="w-full border p-2 rounded bg-white">
+                    <option value="CHURRASQUEIRA" {{ 'selected' if request.query_params.get('form_area') == 'CHURRASQUEIRA' }}>Churrasqueira</option>
+                    <option value="SALAO_FESTAS" {{ 'selected' if request.query_params.get('form_area') == 'SALAO_FESTAS' }}>Salão de Festas</option>
+                    <option value="SALAO_GOURMET" {{ 'selected' if request.query_params.get('form_area') == 'SALAO_GOURMET' }}>Salão Gourmet</option>
+                </select>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4">
+                <button type="button" onclick="closeModal()" class="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded font-bold">Cancelar</button>
+                <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded font-bold hover:scale-105 transition shadow">Confirmar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="cancel-reservation-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 animate-fade-in border border-slate-200">
+        <h3 class="font-bold text-lg text-red-700 mb-2">Cancelar Reserva?</h3>
+        <p class="text-sm text-slate-600 mb-4">Você está prestes a cancelar a reserva de:</p>
+        <div class="bg-red-50 border border-red-100 p-3 rounded mb-4 text-center font-bold text-slate-700" id="cancel-date-display"></div>
+        <form id="cancel-form" method="POST">
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Autorizado por</label>
+                <input type="text" name="authorized_by" placeholder="Nome do Solicitante" class="w-full border p-2 rounded outline-none focus:border-indigo-500" required>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('cancel-reservation-modal').classList.add('hidden')" class="px-4 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded">Voltar</button>
+                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded font-bold shadow hover:bg-red-700">Confirmar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openModal() { document.getElementById('new-res-modal').classList.remove('hidden'); }
+    function closeModal() {
+        const url = new URL(window.location); url.searchParams.delete('modal'); url.searchParams.delete('error');
+        window.history.pushState({}, '', url); document.getElementById('new-res-modal').classList.add('hidden');
+    }
+    function openCancelModal(id, details) {
+        document.getElementById('cancel-date-display').innerText = details;
+        document.getElementById('cancel-form').action = '/reservation/' + id + '/cancel';
+        document.getElementById('cancel-reservation-modal').classList.remove('hidden');
+    }
+</script>
+{% endblock %}

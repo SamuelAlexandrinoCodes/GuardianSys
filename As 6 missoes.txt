@@ -1,0 +1,83 @@
+➤ Prompt 1: A Base de Dados (O Alicerce)
+"Vamos iniciar a Fase 1 da expansão. Preciso que você atualize o arquivo models.py.
+
+Na tabela Unit, adicione um campo status (texto) para controlar se está 'Ocupado', 'Vazio' ou 'Invadido'.
+
+Na tabela Resident, adicione campos para observations (texto longo), is_pcd (booleano) e pcd_tag (texto).
+
+Crie uma nova tabela Vehicle vinculada à Unit, com campos: type (Carro/Moto), model, plate e tag.
+
+Crie uma nova tabela Pet vinculada à Unit, com campos: name, breed e notes.
+
+Crie a tabela Inventory com: name, category, label_code, quantity, location, purchase_link e last_updated.
+
+Crie a tabela Task com: title, description, due_date, type (Reunião/Tarefa) e status (Pendente/Concluído).
+
+Crie a tabela Payable (Contas a Pagar) com: description, amount, due_date, barcode, status (Aberto/Pago).
+
+Me entregue o código completo do models.py atualizado."
+
+➤ Prompt 2: Visualização da Unidade (Frontend)
+"Agora que o banco está pronto, vamos para o Frontend da Unidade. Preciso atualizar o unit_details.html, o unit_content.html e o main.py.
+
+No topo da página da unidade, permita alterar o Status (Ocupado/Vazio/Invadido) visualmente (pode ser uma badge clicável ou select).
+
+Abaixo da lista de moradores, crie duas novas seções: 'Veículos & Transportes' e 'Animais de Estimação'.
+
+Permita adicionar, editar e excluir veículos e pets (use a mesma lógica de modais que usamos para moradores).
+
+No card do morador, adicione um ícone ou indicador se for PCD e um botão para ver/editar a 'Observação' dele.
+
+Me forneça os códigos atualizados necessários."
+
+➤ Prompt 3: Inventário e Tarefas (Novas Abas)
+"Vamos criar as ferramentas administrativas.
+
+Crie uma nova rota e template /inventory: Uma tabela listando os itens, com botões para dar baixa (diminuir qtd) ou entrada (aumentar qtd) e editar o link de compra.
+
+Crie uma nova rota e template /tasks: Uma lista de tarefas e reuniões. Deve ter checkboxes para marcar como concluído. As reuniões devem ter destaque visual diferente das tarefas simples.
+
+Atualize o base.html para incluir esses novos links no menu lateral.
+
+Gere os códigos para main.py e os novos HTMLs."
+
+➤ Prompt 4: O Novo Módulo de Reservas (Complexo)
+"Vamos reformular o sistema de Reservas.
+
+No models.py (ou apenas na lógica), adicione o suporte para a área 'Salão Gourmet' (Cor Roxa).
+
+No formulário de Nova Reserva: A data deve vir pré-selecionada com o dia de hoje.
+
+Adicione um fluxo de estados na Reserva: 'Aguardando Boleto' -> 'Boleto Enviado' -> 'Pago/Confirmado'.
+
+Crie um botão na lista de reservas que gera um texto padrão de e-mail para a corretora solicitando o boleto (pode ser um link mailto: com o assunto e corpo preenchidos com os dados da reserva).
+
+Adicione um botão de WhatsApp ao lado do nome do responsável pela reserva, que abre o link wa.me direto.
+
+Adicione um botão 'Imprimir Termo' que abre uma página limpa, formatada como documento formal, com os dados da reserva para assinatura.
+
+Me mostre como alterar o main.py e o reservations.html para isso."
+
+➤ Prompt 5: Financeiro e Calendário (Gestão)
+"Vamos implementar o Financeiro e o Calendário.
+
+Crie a rota /finance: Uma tabela simples de Contas a Pagar, com soma total do mês e status de pagamento.
+
+Crie a rota /calendar: Uma visualização de calendário mensal (pode usar uma lib JS simples como FullCalendar ou montar uma tabela HTML).
+
+O Calendário deve mostrar: Reservas (Amarelo/Azul/Roxo), Reuniões (Verde) e Vencimento de Contas (Vermelho).
+
+Me entregue os arquivos necessários."
+
+➤ Prompt 6: Dashboard 2.0 e Finalização
+"Para finalizar, vamos atualizar o Dashboard (dashboard.html e rota /) e a Segurança.
+
+No Dashboard, crie um widget grande chamado 'Pendências do Dia': Deve listar Contas vencendo hoje, Reservas de hoje e Tarefas pendentes.
+
+Melhore a área de aniversariantes para uma lista mais visível.
+
+No Backend (main.py): Crie uma função que, toda vez que algo for salvo no banco, faça uma cópia do guardian.db para uma pasta específica (simulando o Google Drive).
+
+Crie uma proteção (pode ser um prompt de senha simples no backend) para quando tentarem usar a função de 'Restaurar Backup' ou deletar dados críticos.
+
+Vamos fechar o projeto com essa atualização."

@@ -1,0 +1,61 @@
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm" onclick="this.remove()">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100" onclick="event.stopPropagation()">
+        
+        <div class="bg-indigo-600 px-6 py-4 flex justify-between items-center text-white">
+            <h3 class="font-bold text-lg">Novo Morador</h3>
+            <button onclick="this.closest('.fixed').remove()" class="hover:text-indigo-200 text-xl">✕</button>
+        </div>
+        
+        <form action="/residents/create" method="POST" class="p-6 space-y-4">
+            <input type="hidden" name="unit_id" value="{{ unit_id }}">
+            
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nome Completo</label>
+                <input type="text" name="full_name" required class="w-full border-2 border-slate-200 rounded-lg px-4 py-2 outline-none focus:border-indigo-500 focus:ring-0">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Perfil</label>
+                    <select name="profile_type" class="w-full border border-slate-300 rounded-lg px-3 py-2 bg-white outline-none">
+                        <option value="PROPRIETARIO">Proprietário</option>
+                        <option value="INQUILINO">Inquilino</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nascimento</label>
+                    <input type="date" name="birth_date" required class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Telefone</label>
+                    <input type="text" name="phone" id="phone_input" placeholder="(11) 99999-9999" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">E-mail</label>
+                    <input type="email" name="email" placeholder="nome@email.com" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Observações Gerais</label>
+                <textarea name="observations" class="w-full border border-slate-300 rounded-lg px-4 py-2 outline-none h-20 text-sm" placeholder="Avisos médicos, horários, etc..."></textarea>
+            </div>
+
+            <div class="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <input type="checkbox" name="is_pcd" id="is_pcd" value="true" class="w-5 h-5 text-indigo-600 rounded focus:ring-0">
+                <label for="is_pcd" class="text-sm font-bold text-slate-700 cursor-pointer select-none flex items-center gap-2">♿ Pessoa com Deficiência (PCD)</label>
+            </div>
+
+            <div class="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                <button type="button" onclick="this.closest('.fixed').remove()" class="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg text-sm font-bold transition">Cancelar</button>
+                <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold shadow">Salvar Morador</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+    IMask(document.getElementById('phone_input'), {mask: '(00) 00000-0000'});
+</script>

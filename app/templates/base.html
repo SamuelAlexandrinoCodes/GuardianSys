@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - {{ config.condo_name }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/imask"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Scrollbar fina para tabelas */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen flex overflow-hidden">
+
+    <aside class="w-64 bg-slate-900 text-white flex flex-col shadow-xl z-30 relative flex-shrink-0">
+        <div class="p-6 text-center border-b border-slate-700">
+            <div class="flex flex-col items-center justify-center h-12">
+                <h1 class="{{ 'text-lg' if config.condo_name|length > 15 else 'text-2xl' }} font-bold tracking-wider uppercase leading-tight">
+                    {{ config.condo_name }}
+                </h1>
+                <p class="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">Gestão Local</p>
+            </div>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
+            <a href="/" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition shadow-sm flex items-center gap-3 text-slate-300">
+                📊 Dashboard
+            </a>
+            <a href="/units" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 flex items-center gap-3">
+                🏢 Unidades
+            </a>
+            <a href="/reservations" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 flex items-center gap-3">
+                📅 Reservas
+            </a>
+            <a href="/inventory" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 flex items-center gap-3">
+                📦 Inventário
+            </a>
+            <a href="/tasks" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 flex items-center gap-3">
+                ✅ Tarefas
+            </a>
+            <a href="/finance" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 flex items-center gap-3">
+                💰 Financeiro
+            </a>
+            <a href="/system_data" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 flex items-center gap-3">
+                💾 Dados & Backup
+            </a>
+        </nav>
+
+        <div class="p-4 border-t border-slate-800 bg-slate-900">
+            <a href="/settings" class="block w-full py-2 bg-slate-800 rounded text-sm hover:bg-slate-700 text-center text-slate-300 mb-4 transition">
+                ⚙️ Configurações
+            </a>
+            <div class="text-center opacity-30 hover:opacity-50 transition cursor-default">
+                <p class="text-[9px] font-bold tracking-widest uppercase">Powered by</p>
+                <p class="text-[10px] font-black text-indigo-400 uppercase">Guardian System</p>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col overflow-hidden relative w-full">
+        
+        {% block header %}
+        <header class="bg-white shadow-sm p-4 flex justify-between items-center relative z-20 flex-shrink-0">
+            <h2 class="text-xl font-semibold text-slate-700">{{ title }}</h2>
+            <div class="relative w-96">
+                <input type="text" name="q" placeholder="🔍 Buscar (Ex: 101, João...)" 
+                       class="w-full px-4 py-2 border rounded-full bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                       hx-get="/search" hx-trigger="keyup changed delay:300ms" hx-target="#search-results" autocomplete="off">
+                <div id="search-results" class="absolute top-12 left-0 w-full bg-white shadow-xl rounded-lg overflow-hidden border border-slate-100 empty:hidden"></div>
+            </div>
+        </header>
+        {% endblock %}
+
+        {% if birthdays %}
+        <div class="bg-indigo-600 text-white px-6 py-3 shadow-md flex items-center justify-between z-10 flex-shrink-0">
+            <div class="flex items-center gap-3 text-sm">
+                <span class="text-xl">🎂</span>
+                <div>
+                    <span class="font-bold uppercase tracking-wide">Atenção Comando!</span> Hoje é aniversário de: 
+                    {% for b in birthdays %}
+                        <a href="/unit/{{ b.unit_id }}" class="font-semibold underline ml-1 hover:text-indigo-200 transition">
+                            {{ b.name }} ({{ b.age }} anos) - Apto {{ b.unit_number }}
+                        </a>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            <button onclick="this.parentElement.remove()" class="text-indigo-200 hover:text-white text-lg">×</button>
+        </div>
+        {% endif %}
+
+        <div class="flex-1 overflow-auto p-8 relative">
+            {% block content %}{% endblock %}
+        </div>
+        
+        <div id="modal-container"></div>
+    </main>
+
+    <div id="confirm-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm hidden animate-fade-in">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all scale-100 border border-slate-200">
+            <div class="bg-red-50 border-b border-red-100 px-6 py-4 flex items-center gap-3">
+                <div class="bg-red-100 p-2 rounded-full text-red-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg></div>
+                <h3 class="font-bold text-lg text-red-700" id="conf-title">Confirmar Exclusão</h3>
+            </div>
+            <div class="p-6 text-center"><p class="text-slate-600 text-sm font-medium" id="conf-msg">Tem certeza?</p></div>
+            <div class="bg-slate-50 px-6 py-3 border-t border-slate-100 flex justify-end gap-3">
+                <button onclick="closeConfirmModal()" class="px-4 py-2 text-slate-600 hover:bg-white hover:text-slate-800 border border-transparent hover:border-slate-200 rounded-lg text-sm font-bold transition">Cancelar</button>
+                <button id="conf-btn-yes" class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold shadow hover:shadow-lg transition flex items-center gap-2" hx-swap="outerHTML" hx-on::after-request="closeConfirmModal()"><span>🗑️</span> Sim, Excluir</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function confirmAction(url, targetId, title, message) {
+            document.getElementById('conf-title').innerText = title || 'Atenção';
+            document.getElementById('conf-msg').innerText = message || 'Tem certeza?';
+            let btn = document.getElementById('conf-btn-yes');
+            btn.setAttribute('hx-delete', url);
+            btn.setAttribute('hx-target', targetId); 
+            htmx.process(btn);
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        }
+        function closeConfirmModal() { document.getElementById('confirm-modal').classList.add('hidden'); }
+    </script>
+</body>
+</html>

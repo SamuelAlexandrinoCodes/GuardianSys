@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="unit-main-content">
+    {% include "partials/unit_content.html" %}
+</div>
+
+<script>
+    let navTimeout; // Variável de controle (O Freio)
+
+    document.addEventListener('keydown', function(event) {
+        if (event.target.tagName === 'INPUT' || event.target.tagName === 'SELECT' || event.target.tagName === 'TEXTAREA') return;
+
+        const navData = document.getElementById('nav-data');
+        if (!navData) return;
+
+        let targetId = null;
+        if (event.key === 'ArrowRight') targetId = navData.dataset.next;
+        if (event.key === 'ArrowLeft') targetId = navData.dataset.prev;
+        if (event.key === 'ArrowUp') targetId = navData.dataset.up;
+        if (event.key === 'ArrowDown') targetId = navData.dataset.down;
+
+        if (targetId) {
+            // 1. Cancela a ordem anterior se você apertou de novo muito rápido
+            clearTimeout(navTimeout);
+
+            // 2. Feedback Visual (Opcional, para saber que o comando foi recebido)
+            document.getElementById('unit-main-content').style.opacity = '0.7';
+
+            // 3. Espera 150ms. Se não apertar nada, aí sim navega via HTMX
+            navTimeout = setTimeout(() => {
+                htmx.ajax('GET', '/unit/' + targetId, {
+                    target: '#unit-main-content', 
+                    swap: 'innerHTML'
+                }).then(() => {
+                    document.getElementById('unit-main-content').style.opacity = '1';
+                });
+            }, 150); 
+        }
+    });
+</script>
+{% endblock %}
