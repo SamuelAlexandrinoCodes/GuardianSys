@@ -10,6 +10,10 @@ import shutil
 from datetime import datetime
 from app.main import app
 
+# 🛑 MÁGICA ANTI-TRAVAMENTO 1: Desativa o uso da Placa de Vídeo.
+# Isso impede o WebView2 de derrubar o "explorer.exe" (Barra do Windows sumindo).
+os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--disable-gpu"
+
 # Configuração
 HOST = "127.0.0.1"
 PORT = 8000
@@ -37,34 +41,26 @@ class Api:
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')
         default_name = f"Backup_Guardian_{timestamp}.zip"
 
-        # 1. Abre a janela de Salvar Como (Nativa do Windows)
         result = self._window.create_file_dialog(
-            webview.FileDialog.SAVE, # <--- CORREÇÃO AQUI (Era webview.SAVE_DIALOG)
+            webview.FileDialog.SAVE, 
             directory=BASE_DIR, 
             save_filename=default_name,
             file_types=('Arquivos ZIP (*.zip)', 'Todos os arquivos (*.*)')
         )
 
         if result:
-            # O result é o caminho completo escolhido pelo usuário (Ex: C:\Meus Docs\Backup.zip)
-            # O create_file_dialog retorna uma string ou None
             target_path = result if isinstance(result, str) else result[0] if isinstance(result, (list, tuple)) else str(result)
             
             try:
-                # 2. Cria o ZIP direto no lugar escolhido
                 with zipfile.ZipFile(target_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    # Salva o Banco de Dados
-                    # Incluímos WAL e SHM caso o banco esteja em uso intenso
                     for db_file in ["guardian.db", "guardian.db-wal", "guardian.db-shm"]:
                         src = os.path.join(DATA_DIR, db_file)
                         if os.path.exists(src):
                             zipf.write(src, arcname=db_file)
                     
-                    # Salva a pasta Storage (Fotos/Docs)
                     for root, _, files in os.walk(STORAGE_DIR):
                         for file in files:
                             fpath = os.path.join(root, file)
-                            # Caminho relativo dentro do zip
                             zipf.write(fpath, arcname=os.path.relpath(fpath, os.path.dirname(STORAGE_DIR)))
                 
                 return {"status": "success", "message": f"Backup salvo com sucesso em:\n{target_path}"}
@@ -75,7 +71,11 @@ class Api:
         return {"status": "cancel", "message": "Operação cancelada."}
 
 def start_server():
-    uvicorn.run(app, host=HOST, port=PORT, log_level="critical")
+    # 🛑 MÁGICA ANTI-TRAVAMENTO 2: Uvicorn Educado.
+    # Em vez de uvicorn.run(), usamos Config e Server para ele não sequestrar a Thread Principal.
+    config = uvicorn.Config(app, host=HOST, port=PORT, log_level="critical")
+    server = uvicorn.Server(config)
+    server.run()
 
 def wait_for_server(host, port, timeout=5):
     start_time = time.time()
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     t = threading.Thread(target=start_server, daemon=True)
     t.start()
     
-    time.sleep(1) 
+    # 🛑 O 'time.sleep(1)' cego foi removido para não travar a janela preta.
     server_ready = wait_for_server(HOST, PORT)
 
     if server_ready:
@@ -103,7 +103,7 @@ if __name__ == '__main__':
             width=1200, 
             height=800,
             min_size=(1024, 768),
-            js_api=api  # Conecta a nossa API ao Javascript
+            js_api=api
         )
         api.set_window(window)
         
