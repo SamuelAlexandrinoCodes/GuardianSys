@@ -205,8 +205,13 @@
         <ul class="space-y-2 max-h-48 overflow-auto">
             {% for doc in documents %}
             <li id="doc-item-{{ doc.id }}" class="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-100 text-sm">
-                <a href="/{{ doc.filepath }}" target="_blank" class="text-indigo-600 hover:underline truncate w-64 flex items-center gap-2">📄 {{ doc.filename }}</a>
-                <button type="button" onclick="confirmAction('/document/{{ doc.id }}', '#doc-item-{{ doc.id }}', 'Excluir Arquivo?', 'O arquivo {{ doc.filename }} será apagado permanentemente.')" class="text-slate-300 hover:text-red-600 font-bold p-1 hover:bg-red-50 rounded transition">✕</button>
+                <div class="min-w-0 flex-1">
+                    <a href="/{{ doc.filepath }}" target="_blank" class="text-indigo-600 hover:underline truncate block">📄 {{ doc.filename }}</a>
+                    {% if doc.reservation_id and res_labels.get(doc.reservation_id) %}
+                    <span class="text-[10px] text-slate-400">Reserva {{ res_labels[doc.reservation_id] }}</span>
+                    {% endif %}
+                </div>
+                <button type="button" onclick="confirmAction('/document/{{ doc.id }}', '#doc-item-{{ doc.id }}', 'Excluir Arquivo?', 'O arquivo {{ doc.filename }} será apagado permanentemente.')" class="text-slate-300 hover:text-red-600 font-bold p-1 hover:bg-red-50 rounded transition shrink-0">✕</button>
             </li>
             {% endfor %}
             {% if not documents %}
@@ -223,13 +228,14 @@
         <div class="space-y-2 max-h-48 overflow-auto pr-1">
             {% for res in unit_reservations %}
             <div class="flex items-center gap-3 p-2 bg-slate-50 rounded border border-slate-100 text-sm">
-                <div class="bg-white border {{ 'border-orange-200 text-orange-600' if res.area_name == 'CHURRASQUEIRA' else 'border-purple-200 text-purple-600' }} rounded-lg p-2 text-center w-12 shadow-sm">
+                <div class="bg-white border {{ 'border-yellow-200 text-yellow-700' if res.area_name == 'CHURRASQUEIRA' else ('border-blue-200 text-blue-700' if res.area_name == 'SALAO_FESTAS' else 'border-purple-200 text-purple-700') }} rounded-lg p-2 text-center w-12 shadow-sm shrink-0">
                     <span class="block text-xs font-bold">{{ res.reservation_date.day }}</span>
                     <span class="block text-[8px] uppercase">{{ res.reservation_date.strftime('%b') }}</span>
                 </div>
-                <div>
+                <div class="min-w-0 flex-1">
                     <div class="font-bold text-slate-700">{{ res.area_name.replace('_', ' ').title() }}</div>
-                    <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wide">{{ res.status }}</div>
+                    {% set sc = 'bg-red-100 text-red-700' if res.status == 'Fazer boleto' else ('bg-yellow-100 text-yellow-700' if 'imobiliária' in res.status or res.status == 'Aguardando Boleto' else ('bg-orange-100 text-orange-700' if 'Pagamento' in res.status else 'bg-green-100 text-green-700')) %}
+                    <span class="text-[10px] px-1.5 py-0.5 rounded font-bold {{ sc }}">{{ res.status }}</span>
                 </div>
             </div>
             {% endfor %}

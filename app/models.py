@@ -75,26 +75,47 @@ class Task(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     description: Optional[str] = None
+    details: Optional[str] = None  # JSON: subtarefas, notas ricas
+    start_date: Optional[date] = None
     due_date: Optional[date] = None
-    type: str 
-    status: str = Field(default="PENDENTE") 
+    completed_at: Optional[datetime] = None
+    type: str = Field(default="TAREFA")
+    status: str = Field(default="PENDENTE")
+
+class Meeting(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str
+    meeting_date: date
+    meeting_time: Optional[str] = None  # "14:00"
+    reminder_date: Optional[date] = None
+    company: Optional[str] = None
+    reason: Optional[str] = None
+    notes: Optional[str] = None
+    participants: Optional[str] = None  # JSON: [{name, phone, email}]
+    created_at: datetime = Field(default_factory=datetime.now)
 
 class Payable(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    description: str 
+    description: str
+    subject: Optional[str] = None  # sobre o que é a conta
+    payee: Optional[str] = None  # para quem pagamos
     amount: float
     due_date: date
+    regularity: str = Field(default="MENSAL")  # MENSAL, ANUAL, IRREGULAR
+    notify_days_before: int = Field(default=7)
     barcode: Optional[str] = None
     status: str = Field(default="ABERTO") 
 
 class Document(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     unit_id: int = Field(foreign_key="unit.id")
+    reservation_id: Optional[int] = Field(default=None, foreign_key="reservation.id")
     filename: str
     filepath: str
     category: str
     upload_date: datetime = Field(default_factory=datetime.now)
     unit: Unit = Relationship(back_populates="documents")
+    reservation: Optional["Reservation"] = Relationship(back_populates="documents")
 
 class Reservation(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -105,6 +126,8 @@ class Reservation(SQLModel, table=True):
     status: str = Field(default="Fazer boleto") 
     cancelled_by: Optional[str] = None 
     created_at: datetime = Field(default_factory=datetime.now)
+    confirmed_at: Optional[datetime] = None  # quando status = Pago/Confirmado
     
     unit: Unit = Relationship(back_populates="reservations")
     resident: Optional[Resident] = Relationship(back_populates="reservations")
+    documents: List["Document"] = Relationship(back_populates="reservation")

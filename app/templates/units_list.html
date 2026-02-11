@@ -1,16 +1,34 @@
 {% extends "base.html" %}
 
-{% block content %}
-<div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex justify-between items-center">
-    <div>
-        <h2 class="text-2xl font-bold text-slate-700">🏢 Mapa Geral de Unidades</h2>
-        <p class="text-sm text-slate-400">Visão tática de todas as unidades</p>
+{% block header %}
+<header class="bg-white shadow-sm p-4 flex justify-between items-center relative z-20 flex-shrink-0">
+    <div class="flex items-center gap-6">
+        <div>
+            <h2 class="text-xl font-semibold text-slate-700">🏢 Mapa Geral de Unidades</h2>
+            <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Visão tática de unidades</p>
+        </div>
+        
+        {% set ocupadas = units | selectattr('status', 'equalto', 'Ocupado') | list | length %}
+        <div class="flex gap-2 text-xs font-bold">
+            <span class="bg-slate-50 text-slate-600 px-3 py-1 rounded-full border border-slate-200 shadow-sm flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-slate-400"></span> Total: {{ units|length }}
+            </span>
+            <span class="bg-green-50 text-green-700 px-3 py-1 rounded-full border border-green-200 shadow-sm flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-green-500"></span> Ocupadas: {{ ocupadas }}
+            </span>
+        </div>
     </div>
-    <div class="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg text-sm font-bold border border-indigo-100">
-        Total: {{ units|length }} Unidades
-    </div>
-</div>
 
+    <div class="relative w-96">
+        <input type="text" name="q" placeholder="🔍 Buscar Unidade ou Morador..." 
+               class="w-full px-4 py-2 border rounded-full bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition"
+               hx-get="/search" hx-trigger="keyup changed delay:300ms" hx-target="#search-results" autocomplete="off">
+        <div id="search-results" class="absolute top-12 left-0 w-full bg-white shadow-xl rounded-lg overflow-hidden border border-slate-100 empty:hidden"></div>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
 <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 pb-8">
     {% for item in units %}
     <a href="/unit/{{ item.unit.id }}" class="block group">
@@ -24,7 +42,7 @@
                     {% endif %}">
             
             <div class="flex justify-between items-start mb-3">
-                <span class="text-lg font-bold text-slate-700 font-mono">{{ item.unit.number }}</span>
+                <span class="text-3xl font-bold text-slate-700 font-mono">{{ item.unit.number }}</span>
                 
                 {% if item.status == 'Ocupado' %}
                     <span class="h-2.5 w-2.5 rounded-full bg-green-500 shadow-sm ring-2 ring-green-100" title="Ocupado"></span>

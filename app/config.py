@@ -28,6 +28,18 @@ for folder in [STORAGE_DIR, PHOTOS_DIR, DATA_DIR]:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
+def get_unit_folder_name(unit) -> str:
+    """Pasta da unidade: apto_{block}_{number} (ex: apto_1_105)"""
+    block = str(unit.block).strip().replace(" ", "_")
+    number = str(unit.number).strip().replace(" ", "_")
+    return f"apto_{block}_{number}"
+
+def get_reservation_folder_name(reservation_date, area_name: str) -> str:
+    """Pasta da reserva: {data}_{area} (ex: 2025-02-15_churrasqueira) - identificador único"""
+    date_str = reservation_date.isoformat() if hasattr(reservation_date, 'isoformat') else str(reservation_date)
+    area = str(area_name).lower().replace(" ", "_")
+    return f"{date_str}_{area}"
+
 # --- OBJETOS COMPARTILHADOS ---
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 

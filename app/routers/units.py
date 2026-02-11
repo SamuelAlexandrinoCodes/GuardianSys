@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 from app.database import engine
 from app.models import Unit, Resident, Document, Reservation, Vehicle, Pet
-from app.config import templates, get_config, run_backup_job, STORAGE_DIR, PHOTOS_DIR
+from app.config import templates, get_config, run_backup_job, STORAGE_DIR, PHOTOS_DIR, get_unit_folder_name
 
 router = APIRouter()
 
@@ -58,19 +58,25 @@ def unit_details(request: Request, unit_id: int):
 
         residents = session.exec(select(Resident).where(Resident.unit_id == unit_id, Resident.is_active == True)).all()
         documents = session.exec(select(Document).where(Document.unit_id == unit_id).order_by(Document.upload_date.desc())).all()
+        res_labels = {}
+        for doc in documents:
+            if doc.reservation_id and doc.reservation_id not in res_labels:
+                r = session.get(Reservation, doc.reservation_id)
+                if r:
+                    res_labels[doc.reservation_id] = f"{r.reservation_date.strftime('%d/%m')} — {r.area_name.replace('_', ' ')}"
         vehicles = session.exec(select(Vehicle).where(Vehicle.unit_id == unit_id)).all()
         pets = session.exec(select(Pet).where(Pet.unit_id == unit_id)).all()
         
         today = date.today()
         unit_reservations = session.exec(
             select(Reservation)
-            .where(Reservation.unit_id == unit_id, Reservation.reservation_date >= today, Reservation.status == "CONFIRMADA")
+            .where(Reservation.unit_id == unit_id, Reservation.reservation_date >= today, Reservation.status != "CANCELADA")
             .order_by(Reservation.reservation_date)
         ).all()
         
         context = {
             "request": request, "unit": unit, "residents": residents, "documents": documents,
-            "vehicles": vehicles, "pets": pets, "unit_reservations": unit_reservations,
+            "res_labels": res_labels, "vehicles": vehicles, "pets": pets, "unit_reservations": unit_reservations,
             "title": "Detalhes da Unidade",
             "config": config, "nav": {"prev": prev_unit, "next": next_unit, "up": up_unit, "down": down_unit}
         }
@@ -406,27 +412,39 @@ def update_pet(p_id: int, field: str, background_tasks: BackgroundTasks, value: 
 @router.post("/unit/{unit_id}/upload")
 async def upload_file(unit_id: int, background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     try:
-        unit_folder = os.path.join(STORAGE_DIR, str(unit_id))
-        if not os.path.exists(unit_folder):
-            os.makedirs(unit_folder)
-        safe_filename = file.filename.replace(" ", "_")
-        filepath = os.path.join(unit_folder, safe_filename)
-        with open(filepath, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
         with Session(engine) as session:
-            session.add(Document(unit_id=unit_id, filename=safe_filename, filepath=f"storage/{unit_id}/{safe_filename}", category="Geral"))
+            unit = session.get(Unit, unit_id)
+            if not unit:
+                return HTMLResponse("<h3>Unidade não encontrada.</h3>", status_code=404)
+            folder_name = get_unit_folder_name(unit)
+            unit_folder = os.path.join(STORAGE_DIR, folder_name)
+            if not os.path.exists(unit_folder):
+                os.makedirs(unit_folder)
+            safe_filename = file.filename.replace(" ", "_")
+            filepath = os.path.join(unit_folder, safe_filename)
+            with open(filepath, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            session.add(Document(unit_id=unit_id, filename=safe_filename, filepath=f"storage/{folder_name}/{safe_filename}", category="Geral"))
             session.commit()
             background_tasks.add_task(run_backup_job)
         return RedirectResponse(url=f"/unit/{unit_id}", status_code=303)
     except:
         return HTMLResponse("<h3>Erro ao fazer upload.</h3>", status_code=500)
 
+def _doc_full_path(doc, session) -> str:
+    """Retorna o caminho físico do documento."""
+    if doc.filepath.startswith("storage/"):
+        return os.path.join(STORAGE_DIR, doc.filepath.replace("storage/", "", 1))
+    unit = session.get(Unit, doc.unit_id)
+    folder = get_unit_folder_name(unit) if unit else str(doc.unit_id)
+    return os.path.join(STORAGE_DIR, folder, doc.filename)
+
 @router.delete("/document/{doc_id}")
 def delete_document(doc_id: int, background_tasks: BackgroundTasks):
     with Session(engine) as session:
         doc = session.get(Document, doc_id)
         if doc:
-            full_path = os.path.join(STORAGE_DIR, str(doc.unit_id), doc.filename)
+            full_path = _doc_full_path(doc, session)
             try: os.remove(full_path)
             except: pass
             session.delete(doc)
