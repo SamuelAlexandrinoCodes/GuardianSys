@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date # <-- CORREÇÃO: Importamos o 'date'
 from fastapi import APIRouter, Request, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
@@ -13,7 +13,15 @@ def list_tasks(request: Request):
     with Session(engine) as session:
         tasks = session.exec(select(Task).where(Task.type == "TAREFA").order_by(Task.due_date)).all()
         meetings = session.exec(select(Task).where(Task.type == "REUNIAO").order_by(Task.due_date)).all()
-        return templates.TemplateResponse("tasks.html", {"request": request, "tasks": tasks, "meetings": meetings, "config": get_config(session)})
+        
+        # CORREÇÃO: Enviamos a variável "date" para o HTML conseguir calcular o atraso
+        return templates.TemplateResponse("tasks.html", {
+            "request": request, 
+            "tasks": tasks, 
+            "meetings": meetings, 
+            "config": get_config(session),
+            "date": date 
+        })
 
 @router.post("/tasks/create", response_class=RedirectResponse)
 def create_task(background_tasks: BackgroundTasks, title: str = Form(...), type: str = Form(...), due_date: str = Form(None), description: str = Form(None)):

@@ -81,3 +81,7 @@ No Backend (main.py): Crie uma função que, toda vez que algo for salvo no banc
 Crie uma proteção (pode ser um prompt de senha simples no backend) para quando tentarem usar a função de 'Restaurar Backup' ou deletar dados críticos.
 
 Vamos fechar o projeto com essa atualização."
+
+
+
+Entao, agora precisamos de uma refatoracao das nossas interfaces, Eu gostaria de transformar o modal de cima no Titulo unico, deixando ele um pouco maior, e removendo o titulo em baixo que as reservas, unidades, tarefas etc tem. E entao transformando  a parte da barra de pesquisa numa parte customizada para cada sessao a barra de pesquisa existiria no dashboard e unidades, ja na reservas ela usaria o botao de nova reserva. e no inventario a busca por nome etiqueta local ou categora e o botao de novo item. Pode ser?

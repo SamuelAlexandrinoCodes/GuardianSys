@@ -64,6 +64,11 @@ class Inventory(SQLModel, table=True):
     quantity: int = Field(default=0)
     location: Optional[str] = None 
     purchase_link: Optional[str] = None 
+    
+    # NOVOS ATRIBUTOS DA MISSÃO 3A
+    entry_date: Optional[date] = None
+    write_off_date: Optional[date] = None
+    
     last_updated: datetime = Field(default_factory=datetime.now)
 
 class Task(SQLModel, table=True):
@@ -94,10 +99,7 @@ class Document(SQLModel, table=True):
 class Reservation(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     unit_id: int = Field(foreign_key="unit.id")
-    
-    # CAMPO NOVO QUE CAUSA O ERRO SE O BANCO FOR VELHO
     resident_id: Optional[int] = Field(default=None, foreign_key="resident.id")
-    
     area_name: str
     reservation_date: date
     status: str = Field(default="Fazer boleto") 
