@@ -8,6 +8,7 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/imask"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
     <style>
         body { font-family: 'Inter', sans-serif; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -15,117 +16,143 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        /* MÁGICA DO MENU COMPACTO (MINI SIDEBAR) */
-        .sidebar-closed .nav-text, 
-        .sidebar-closed .sidebar-full-logo,
-        .sidebar-closed .sidebar-footer { display: none; }
-        
-        .sidebar-open .sidebar-mini-logo { display: none; }
-        .sidebar-open .nav-tooltip { display: none !important; }
-        
-        /* Ajuste de espaçamento dos links dependendo do estado */
-        .sidebar-closed .nav-link { justify-content: center; padding: 0.75rem 0; }
-        .sidebar-open .nav-link { justify-content: flex-start; padding: 0.75rem 1rem; }
-    </style>
-</head>
-<body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden">
+        /* TRAVA MILITAR (Anti-FOUC) */
+        .preload * { transition: none !important; }
 
-    <aside id="sidebar" class="sidebar-open w-64 transition-all duration-300 ease-in-out flex flex-col bg-slate-900 text-white shadow-2xl z-40 shrink-0 relative">
+        /* --- ARQUITETURA DE REDIMENSIONAMENTO MATEMÁTICO --- */
+        #main-sidebar {
+            width: 260px; /* Largura Aberto */
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
         
-        <div class="h-16 flex items-center justify-center border-b border-slate-700 shrink-0 px-2 overflow-hidden">
-            <div class="sidebar-mini-logo font-black text-2xl text-indigo-500 tracking-tighter">GS</div>
+        html.sidebar-collapsed #main-sidebar {
+            width: 72px; /* Largura Fechado. Exatamente 12(pad) + 48(link) + 12(pad) */
+        }
+
+        /* --- COMPORTAMENTO DE TEXTO FLUÍDO --- 
+           Em vez de mover o ícone, nós encolhemos o texto a zero. 
+           O ícone permanece estático, ancorado à esquerda. */
+        .sidebar-text {
+            max-width: 200px;
+            opacity: 1;
+            margin-left: 0.75rem; /* ml-3 */
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        html.sidebar-collapsed .sidebar-text {
+            max-width: 0;
+            opacity: 0;
+            margin-left: 0;
+            pointer-events: none;
+        }
+
+        /* Oculta o rodapé (Powered by) quando fechado */
+        html.sidebar-collapsed .sidebar-footer-info {
+            opacity: 0;
+            height: 0;
+            margin: 0;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+    </style>
+    
+    <script>
+        if (localStorage.getItem('guardian_sidebar_collapsed') === 'true') {
+            document.documentElement.classList.add('sidebar-collapsed');
+        }
+    </script>
+</head>
+
+<body class="bg-slate-100 text-slate-800 h-screen flex overflow-hidden preload">
+
+    <aside id="main-sidebar" class="bg-slate-900 text-white flex flex-col shadow-xl z-30 relative flex-shrink-0 overflow-hidden">
+        
+        <div class="px-4 py-5 border-b border-slate-700 flex items-center h-20 w-full shrink-0">
+            <button id="toggle-sidebar" class="p-2 rounded hover:bg-slate-800 text-slate-300 transition shrink-0 focus:outline-none h-10 w-10 flex items-center justify-center relative z-20">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </button>
             
-            <div class="sidebar-full-logo flex flex-col items-center justify-center w-full">
-                <h1 class="{{ 'text-lg' if config.condo_name|length > 15 else 'text-xl' }} font-bold tracking-wider uppercase leading-tight whitespace-nowrap">
-                    {{ config.condo_name }}
-                </h1>
-                <p class="text-[10px] text-slate-400 mt-0.5 uppercase tracking-widest whitespace-nowrap">Gestão Local</p>
+            <div class="sidebar-text flex flex-col justify-center overflow-hidden whitespace-nowrap w-full">
+                <h1 class="text-lg font-bold tracking-wider uppercase truncate">{{ config.condo_name }}</h1>
+                <p class="text-[10px] text-slate-400 uppercase tracking-widest truncate">Gestão Local</p>
             </div>
         </div>
 
-        <nav class="flex-1 py-4 flex flex-col gap-2 overflow-y-auto overflow-x-hidden px-2 relative">
-            <a href="/" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
-                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">📊</span>
-                <span class="nav-text ml-3 font-medium whitespace-nowrap">Dashboard</span>
-                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">📊 Dashboard</div>
+        <nav class="flex-1 p-3 space-y-2 overflow-y-auto overflow-x-hidden">
+            <a href="/" data-tooltip="Dashboard" class="sidebar-link flex items-center p-3 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors text-slate-300">
+                <span class="text-xl shrink-0 flex items-center justify-center w-6 h-6">📊</span>
+                <span class="sidebar-text font-medium whitespace-nowrap overflow-hidden">Dashboard</span>
             </a>
             
-            <a href="/units" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
-                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">🏢</span>
-                <span class="nav-text ml-3 font-medium whitespace-nowrap">Unidades</span>
-                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">🏢 Unidades</div>
+            <a href="/units" data-tooltip="Unidades" class="sidebar-link flex items-center p-3 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors text-slate-300">
+                <span class="text-xl shrink-0 flex items-center justify-center w-6 h-6">🏢</span>
+                <span class="sidebar-text font-medium whitespace-nowrap overflow-hidden">Unidades</span>
             </a>
-
-            <a href="/reservations" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
-                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">📅</span>
-                <span class="nav-text ml-3 font-medium whitespace-nowrap">Reservas</span>
-                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">📅 Reservas</div>
+            
+            <a href="/reservations" data-tooltip="Reservas" class="sidebar-link flex items-center p-3 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors text-slate-300">
+                <span class="text-xl shrink-0 flex items-center justify-center w-6 h-6">📅</span>
+                <span class="sidebar-text font-medium whitespace-nowrap overflow-hidden">Reservas</span>
             </a>
-
-            <a href="/inventory" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
-                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">📦</span>
-                <span class="nav-text ml-3 font-medium whitespace-nowrap">Inventário</span>
-                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">📦 Inventário</div>
+            
+            <a href="/inventory" data-tooltip="Inventário" class="sidebar-link flex items-center p-3 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors text-slate-300">
+                <span class="text-xl shrink-0 flex items-center justify-center w-6 h-6">📦</span>
+                <span class="sidebar-text font-medium whitespace-nowrap overflow-hidden">Inventário</span>
             </a>
-
-            <a href="/tasks" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
-                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">✅</span>
-                <span class="nav-text ml-3 font-medium whitespace-nowrap">Tarefas</span>
-                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">✅ Tarefas</div>
+            
+            <a href="/tasks" data-tooltip="Tarefas" class="sidebar-link flex items-center p-3 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors text-slate-300">
+                <span class="text-xl shrink-0 flex items-center justify-center w-6 h-6">✅</span>
+                <span class="sidebar-text font-medium whitespace-nowrap overflow-hidden">Tarefas</span>
             </a>
-
-            <a href="/finance" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
-                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">💰</span>
-                <span class="nav-text ml-3 font-medium whitespace-nowrap">Financeiro</span>
-                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">💰 Financeiro</div>
+            
+            <a href="/finance" data-tooltip="Financeiro" class="sidebar-link flex items-center p-3 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors text-slate-300">
+                <span class="text-xl shrink-0 flex items-center justify-center w-6 h-6">💰</span>
+                <span class="sidebar-text font-medium whitespace-nowrap overflow-hidden">Financeiro</span>
             </a>
-
-            <a href="/system_data" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
-                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">💾</span>
-                <span class="nav-text ml-3 font-medium whitespace-nowrap">Dados & Backup</span>
-                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">💾 Dados & Backup</div>
+            
+            <a href="/system_data" data-tooltip="Dados & Backup" class="sidebar-link flex items-center p-3 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors text-slate-300">
+                <span class="text-xl shrink-0 flex items-center justify-center w-6 h-6">💾</span>
+                <span class="sidebar-text font-medium whitespace-nowrap overflow-hidden">Dados & Backup</span>
             </a>
         </nav>
 
-        <div class="p-2 border-t border-slate-800 bg-slate-900 shrink-0">
-            <a href="/settings" class="nav-link flex items-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition group relative mb-2">
-                <span class="text-lg flex items-center justify-center w-8 h-8 shrink-0">⚙️</span>
-                <span class="nav-text ml-3 font-medium whitespace-nowrap">Configurações</span>
-                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">⚙️ Configurações</div>
+        <div class="px-3 py-4 border-t border-slate-800 bg-slate-900 shrink-0">
+            <a href="/settings" data-tooltip="Configurações" class="sidebar-link flex items-center p-3 w-full bg-slate-800 rounded-lg hover:bg-slate-700 text-slate-300 transition-colors mb-4">
+                <span class="text-lg shrink-0 flex items-center justify-center w-6 h-6">⚙️</span>
+                <span class="sidebar-text font-medium whitespace-nowrap overflow-hidden text-sm">Configurações</span>
             </a>
-            <div class="sidebar-footer text-center opacity-30 hover:opacity-50 transition cursor-default mb-2">
+            <div class="sidebar-footer-info text-center opacity-30 hover:opacity-50 transition cursor-default">
                 <p class="text-[9px] font-bold tracking-widest uppercase">Powered by</p>
                 <p class="text-[10px] font-black text-indigo-400 uppercase">Guardian System</p>
             </div>
         </div>
     </aside>
 
-    <main class="flex-1 flex flex-col h-screen overflow-hidden relative w-full bg-slate-50">
+    <main class="flex-1 flex flex-col overflow-hidden relative w-full bg-slate-100">
         
-        <header class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 md:px-6 shrink-0 z-20">
-            <div class="flex items-center gap-4">
-                <button onclick="toggleSidebar()" class="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition" title="Recolher/Expandir Menu">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                </button>
-                <h2 class="text-lg font-bold text-slate-700 hidden sm:block tracking-tight">{{ title }}</h2>
-            </div>
-            
-            <div class="relative w-64 md:w-96">
-                <input type="text" name="q" placeholder="🔍 Busca Rápida (Ex: 101, João...)" 
-                       class="w-full px-4 py-2 text-sm border-2 border-slate-100 rounded-full bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+        {% block header %}
+        <header class="bg-white shadow-sm p-4 flex justify-between items-center relative z-20 flex-shrink-0">
+            <h2 class="text-xl font-semibold text-slate-700">{{ title }}</h2>
+            <div class="relative w-96">
+                <input type="text" name="q" placeholder="🔍 Buscar (Ex: 101, João...)" 
+                       class="w-full px-4 py-2 border rounded-full bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition"
                        hx-get="/search" hx-trigger="keyup changed delay:300ms" hx-target="#search-results" autocomplete="off">
                 <div id="search-results" class="absolute top-12 left-0 w-full bg-white shadow-xl rounded-lg overflow-hidden border border-slate-100 empty:hidden"></div>
             </div>
         </header>
+        {% endblock %}
 
         {% if birthdays %}
-        <div class="bg-indigo-600 text-white px-6 py-3 shadow-md flex items-center justify-between z-10 shrink-0">
+        <div class="bg-indigo-600 text-white px-6 py-3 shadow-md flex items-center justify-between z-10 flex-shrink-0">
             <div class="flex items-center gap-3 text-sm">
                 <span class="text-xl">🎂</span>
                 <div>
                     <span class="font-bold uppercase tracking-wide">Atenção Comando!</span> Hoje é aniversário de: 
                     {% for b in birthdays %}
-                        <a href="/unit/{{ b.unit_id }}" class="font-semibold underline ml-1 hover:text-indigo-200 transition">{{ b.name }} ({{ b.age }} anos) - Apto {{ b.unit_number }}</a>{% if not loop.last %}, {% endif %}
+                        <a href="/unit/{{ b.unit_id }}" class="font-semibold underline ml-1 hover:text-indigo-200 transition">
+                            {{ b.name }} ({{ b.age }} anos) - Apto {{ b.unit_number }}
+                        </a>{% if not loop.last %}, {% endif %}
                     {% endfor %}
                 </div>
             </div>
@@ -133,42 +160,7 @@
         </div>
         {% endif %}
 
-        <div class="flex-1 overflow-auto p-4 md:p-8 relative">
-            {% if page_type == 'dashboard' and stats %}
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-l-4 border-l-indigo-500">
-                    <p class="text-slate-500 text-[10px] font-bold uppercase">População Total</p>
-                    <h3 class="text-4xl font-bold text-slate-800 mt-1">{{ stats.total_residents }}</h3>
-                </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-l-4 border-l-green-500">
-                    <p class="text-slate-500 text-[10px] font-bold uppercase">Ocupação</p>
-                    <h3 class="text-4xl font-bold text-slate-800 mt-1">{{ stats.occupancy }}%</h3>
-                    <p class="text-xs text-slate-400 mt-1">{{ stats.total_units }} Unidades Totais</p>
-                </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm">
-                    <p class="text-slate-500 text-[10px] font-bold uppercase">Proprietários</p>
-                    <h3 class="text-3xl font-bold text-slate-800 mt-2">{{ stats.owners }}</h3>
-                    <div class="w-full bg-slate-100 h-1 rounded-full mt-4"><div class="bg-blue-600 h-1 rounded-full" style="width: 60%"></div></div>
-                </div>
-                <div class="bg-white p-6 rounded-xl shadow-sm">
-                    <p class="text-slate-500 text-[10px] font-bold uppercase">Inquilinos</p>
-                    <h3 class="text-3xl font-bold text-slate-800 mt-2">{{ stats.tenants }}</h3>
-                    <div class="w-full bg-slate-100 h-1 rounded-full mt-4"><div class="bg-orange-500 h-1 rounded-full" style="width: 40%"></div></div>
-                </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div class="bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center">
-                    <div><p class="text-slate-400 text-[10px] font-bold uppercase">Crianças (-18)</p><h3 class="text-2xl font-bold text-slate-700">{{ stats.demography.kids }}</h3></div><span class="text-2xl">🧸</span>
-                </div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center">
-                    <div><p class="text-slate-400 text-[10px] font-bold uppercase">Adultos (18-61)</p><h3 class="text-2xl font-bold text-slate-700">{{ stats.demography.adults }}</h3></div><span class="text-2xl">💼</span>
-                </div>
-                <div class="bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center">
-                    <div><p class="text-slate-400 text-[10px] font-bold uppercase">Idosos (62+)</p><h3 class="text-2xl font-bold text-slate-700">{{ stats.demography.seniors }}</h3></div><span class="text-2xl">👓</span>
-                </div>
-            </div>
-            {% endif %}
-
+        <div class="flex-1 overflow-auto p-8 relative">
             {% block content %}{% endblock %}
         </div>
         
@@ -179,32 +171,55 @@
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all scale-100 border border-slate-200">
             <div class="bg-red-50 border-b border-red-100 px-6 py-4 flex items-center gap-3">
                 <div class="bg-red-100 p-2 rounded-full text-red-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg></div>
-                <h3 class="font-bold text-lg text-red-700" id="conf-title">Confirmar</h3>
+                <h3 class="font-bold text-lg text-red-700" id="conf-title">Confirmar Exclusão</h3>
             </div>
             <div class="p-6 text-center"><p class="text-slate-600 text-sm font-medium" id="conf-msg">Tem certeza?</p></div>
             <div class="bg-slate-50 px-6 py-3 border-t border-slate-100 flex justify-end gap-3">
-                <button onclick="closeConfirmModal()" class="px-4 py-2 text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-lg text-sm font-bold transition">Cancelar</button>
-                <button id="conf-btn-yes" class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold shadow transition flex items-center gap-2" hx-swap="outerHTML" hx-on::after-request="closeConfirmModal()"><span>✔️</span> Sim, Confirmar</button>
+                <button onclick="closeConfirmModal()" class="px-4 py-2 text-slate-600 hover:bg-white hover:text-slate-800 border border-transparent hover:border-slate-200 rounded-lg text-sm font-bold transition">Cancelar</button>
+                <button id="conf-btn-yes" class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold shadow hover:shadow-lg transition flex items-center gap-2" hx-swap="outerHTML" hx-on::after-request="closeConfirmModal()"><span>🗑️</span> Sim, Excluir</button>
             </div>
         </div>
     </div>
 
     <script>
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            
-            // Se estiver fechada (w-16), a gente abre (w-64)
-            if (sidebar.classList.contains('w-16')) {
-                sidebar.classList.remove('w-16', 'sidebar-closed');
-                sidebar.classList.add('w-64', 'sidebar-open');
-            } 
-            // Se estiver aberta, a gente fecha
-            else {
-                sidebar.classList.remove('w-64', 'sidebar-open');
-                sidebar.classList.add('w-16', 'sidebar-closed');
-            }
-        }
+        document.addEventListener('DOMContentLoaded', () => {
+            // Remove a trava FOUC
+            setTimeout(() => { document.body.classList.remove('preload'); }, 50);
 
+            // Toggle da Sidebar
+            const toggleBtn = document.getElementById('toggle-sidebar');
+            const htmlNode = document.documentElement;
+
+            toggleBtn.addEventListener('click', () => {
+                const isCollapsed = htmlNode.classList.toggle('sidebar-collapsed');
+                localStorage.setItem('guardian_sidebar_collapsed', isCollapsed);
+            });
+
+            // --- SISTEMA DE TOOLTIP GLOBAL DE ALTA PRECISÃO ---
+            // Cria um único elemento flutuante no body, blindado contra overflow-hidden
+            const tooltip = document.createElement('div');
+            tooltip.className = 'fixed z-[100] px-3 py-2 bg-slate-800 text-indigo-300 text-sm font-semibold rounded-md shadow-xl transition-opacity duration-200 pointer-events-none whitespace-nowrap border border-slate-700 opacity-0 transform -translate-y-1/2';
+            document.body.appendChild(tooltip);
+
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                link.addEventListener('mouseenter', () => {
+                    // Só mostra o tooltip se a barra estiver fechada
+                    if (htmlNode.classList.contains('sidebar-collapsed')) {
+                        const rect = link.getBoundingClientRect();
+                        tooltip.textContent = link.getAttribute('data-tooltip');
+                        // Posiciona exatamente no meio vertical do botão, e 12px à direita dele
+                        tooltip.style.top = `${rect.top + (rect.height / 2)}px`; 
+                        tooltip.style.left = `${rect.right + 12}px`;
+                        tooltip.classList.remove('opacity-0');
+                    }
+                });
+                link.addEventListener('mouseleave', () => {
+                    tooltip.classList.add('opacity-0');
+                });
+            });
+        });
+
+        /* Modal de Confirmação */
         function confirmAction(url, targetId, title, message) {
             document.getElementById('conf-title').innerText = title || 'Atenção';
             document.getElementById('conf-msg').innerText = message || 'Tem certeza?';
