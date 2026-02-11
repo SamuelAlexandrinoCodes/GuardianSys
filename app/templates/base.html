@@ -14,49 +14,97 @@
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* MÁGICA DO MENU COMPACTO (MINI SIDEBAR) */
+        .sidebar-closed .nav-text, 
+        .sidebar-closed .sidebar-full-logo,
+        .sidebar-closed .sidebar-footer { display: none; }
+        
+        .sidebar-open .sidebar-mini-logo { display: none; }
+        .sidebar-open .nav-tooltip { display: none !important; }
+        
+        /* Ajuste de espaçamento dos links dependendo do estado */
+        .sidebar-closed .nav-link { justify-content: center; padding: 0.75rem 0; }
+        .sidebar-open .nav-link { justify-content: flex-start; padding: 0.75rem 1rem; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden">
 
-    <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 hidden opacity-0 transition-opacity duration-300"></div>
-
-    <aside id="sidebar" class="fixed inset-y-0 left-0 w-64 bg-slate-900 text-white flex flex-col shadow-2xl z-50 transform -translate-x-full transition-transform duration-300">
-        <div class="p-6 text-center border-b border-slate-700 flex justify-between items-center relative">
-            <div class="flex flex-col items-center justify-center w-full">
-                <h1 class="{{ 'text-lg' if config.condo_name|length > 15 else 'text-2xl' }} font-bold tracking-wider uppercase leading-tight">
+    <aside id="sidebar" class="sidebar-open w-64 transition-all duration-300 ease-in-out flex flex-col bg-slate-900 text-white shadow-2xl z-40 shrink-0 relative">
+        
+        <div class="h-16 flex items-center justify-center border-b border-slate-700 shrink-0 px-2 overflow-hidden">
+            <div class="sidebar-mini-logo font-black text-2xl text-indigo-500 tracking-tighter">GS</div>
+            
+            <div class="sidebar-full-logo flex flex-col items-center justify-center w-full">
+                <h1 class="{{ 'text-lg' if config.condo_name|length > 15 else 'text-xl' }} font-bold tracking-wider uppercase leading-tight whitespace-nowrap">
                     {{ config.condo_name }}
                 </h1>
-                <p class="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">Gestão Local</p>
+                <p class="text-[10px] text-slate-400 mt-0.5 uppercase tracking-widest whitespace-nowrap">Gestão Local</p>
             </div>
-            <button onclick="toggleSidebar()" class="absolute top-4 right-4 text-slate-400 hover:text-white md:hidden">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            </button>
         </div>
 
-        <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
-            <a href="/" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition shadow-sm flex items-center gap-3 text-slate-300">📊 Dashboard</a>
-            <a href="/units" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 flex items-center gap-3">🏢 Unidades</a>
-            <a href="/reservations" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 flex items-center gap-3">📅 Reservas</a>
-            <a href="/inventory" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 flex items-center gap-3">📦 Inventário</a>
-            <a href="/tasks" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 flex items-center gap-3">✅ Tarefas</a>
-            <a href="/finance" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 flex items-center gap-3">💰 Financeiro</a>
-            <a href="/system_data" class="block px-4 py-3 rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 flex items-center gap-3">💾 Dados & Backup</a>
+        <nav class="flex-1 py-4 flex flex-col gap-2 overflow-y-auto overflow-x-hidden px-2 relative">
+            <a href="/" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
+                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">📊</span>
+                <span class="nav-text ml-3 font-medium whitespace-nowrap">Dashboard</span>
+                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">📊 Dashboard</div>
+            </a>
+            
+            <a href="/units" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
+                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">🏢</span>
+                <span class="nav-text ml-3 font-medium whitespace-nowrap">Unidades</span>
+                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">🏢 Unidades</div>
+            </a>
+
+            <a href="/reservations" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
+                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">📅</span>
+                <span class="nav-text ml-3 font-medium whitespace-nowrap">Reservas</span>
+                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">📅 Reservas</div>
+            </a>
+
+            <a href="/inventory" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
+                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">📦</span>
+                <span class="nav-text ml-3 font-medium whitespace-nowrap">Inventário</span>
+                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">📦 Inventário</div>
+            </a>
+
+            <a href="/tasks" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
+                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">✅</span>
+                <span class="nav-text ml-3 font-medium whitespace-nowrap">Tarefas</span>
+                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">✅ Tarefas</div>
+            </a>
+
+            <a href="/finance" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
+                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">💰</span>
+                <span class="nav-text ml-3 font-medium whitespace-nowrap">Financeiro</span>
+                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">💰 Financeiro</div>
+            </a>
+
+            <a href="/system_data" class="nav-link flex items-center rounded-lg hover:bg-indigo-600 hover:text-white transition text-slate-300 group relative">
+                <span class="text-xl flex items-center justify-center w-8 h-8 shrink-0">💾</span>
+                <span class="nav-text ml-3 font-medium whitespace-nowrap">Dados & Backup</span>
+                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">💾 Dados & Backup</div>
+            </a>
         </nav>
 
-        <div class="p-4 border-t border-slate-800 bg-slate-900">
-            <a href="/settings" class="block w-full py-2 bg-slate-800 rounded text-sm hover:bg-slate-700 text-center text-slate-300 mb-4 transition">⚙️ Configurações</a>
-            <div class="text-center opacity-30 hover:opacity-50 transition cursor-default">
+        <div class="p-2 border-t border-slate-800 bg-slate-900 shrink-0">
+            <a href="/settings" class="nav-link flex items-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition group relative mb-2">
+                <span class="text-lg flex items-center justify-center w-8 h-8 shrink-0">⚙️</span>
+                <span class="nav-text ml-3 font-medium whitespace-nowrap">Configurações</span>
+                <div class="nav-tooltip absolute left-14 bg-slate-800 text-white text-xs px-2 py-1.5 rounded hidden group-hover:block whitespace-nowrap z-50 shadow-lg border border-slate-700">⚙️ Configurações</div>
+            </a>
+            <div class="sidebar-footer text-center opacity-30 hover:opacity-50 transition cursor-default mb-2">
                 <p class="text-[9px] font-bold tracking-widest uppercase">Powered by</p>
                 <p class="text-[10px] font-black text-indigo-400 uppercase">Guardian System</p>
             </div>
         </div>
     </aside>
 
-    <main class="flex-1 flex flex-col h-screen overflow-hidden relative w-full">
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative w-full bg-slate-50">
         
         <header class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 md:px-6 shrink-0 z-20">
             <div class="flex items-center gap-4">
-                <button onclick="toggleSidebar()" class="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition" title="Menu">
+                <button onclick="toggleSidebar()" class="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition" title="Recolher/Expandir Menu">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                 </button>
                 <h2 class="text-lg font-bold text-slate-700 hidden sm:block tracking-tight">{{ title }}</h2>
@@ -86,6 +134,41 @@
         {% endif %}
 
         <div class="flex-1 overflow-auto p-4 md:p-8 relative">
+            {% if page_type == 'dashboard' and stats %}
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-l-4 border-l-indigo-500">
+                    <p class="text-slate-500 text-[10px] font-bold uppercase">População Total</p>
+                    <h3 class="text-4xl font-bold text-slate-800 mt-1">{{ stats.total_residents }}</h3>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-l-4 border-l-green-500">
+                    <p class="text-slate-500 text-[10px] font-bold uppercase">Ocupação</p>
+                    <h3 class="text-4xl font-bold text-slate-800 mt-1">{{ stats.occupancy }}%</h3>
+                    <p class="text-xs text-slate-400 mt-1">{{ stats.total_units }} Unidades Totais</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm">
+                    <p class="text-slate-500 text-[10px] font-bold uppercase">Proprietários</p>
+                    <h3 class="text-3xl font-bold text-slate-800 mt-2">{{ stats.owners }}</h3>
+                    <div class="w-full bg-slate-100 h-1 rounded-full mt-4"><div class="bg-blue-600 h-1 rounded-full" style="width: 60%"></div></div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm">
+                    <p class="text-slate-500 text-[10px] font-bold uppercase">Inquilinos</p>
+                    <h3 class="text-3xl font-bold text-slate-800 mt-2">{{ stats.tenants }}</h3>
+                    <div class="w-full bg-slate-100 h-1 rounded-full mt-4"><div class="bg-orange-500 h-1 rounded-full" style="width: 40%"></div></div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center">
+                    <div><p class="text-slate-400 text-[10px] font-bold uppercase">Crianças (-18)</p><h3 class="text-2xl font-bold text-slate-700">{{ stats.demography.kids }}</h3></div><span class="text-2xl">🧸</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center">
+                    <div><p class="text-slate-400 text-[10px] font-bold uppercase">Adultos (18-61)</p><h3 class="text-2xl font-bold text-slate-700">{{ stats.demography.adults }}</h3></div><span class="text-2xl">💼</span>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border flex justify-between items-center">
+                    <div><p class="text-slate-400 text-[10px] font-bold uppercase">Idosos (62+)</p><h3 class="text-2xl font-bold text-slate-700">{{ stats.demography.seniors }}</h3></div><span class="text-2xl">👓</span>
+                </div>
+            </div>
+            {% endif %}
+
             {% block content %}{% endblock %}
         </div>
         
@@ -109,18 +192,16 @@
     <script>
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('sidebar-overlay');
             
-            if (sidebar.classList.contains('-translate-x-full')) {
-                // Abre
-                sidebar.classList.remove('-translate-x-full');
-                overlay.classList.remove('hidden');
-                setTimeout(() => overlay.classList.remove('opacity-0'), 10);
-            } else {
-                // Fecha
-                sidebar.classList.add('-translate-x-full');
-                overlay.classList.add('opacity-0');
-                setTimeout(() => overlay.classList.add('hidden'), 300);
+            // Se estiver fechada (w-16), a gente abre (w-64)
+            if (sidebar.classList.contains('w-16')) {
+                sidebar.classList.remove('w-16', 'sidebar-closed');
+                sidebar.classList.add('w-64', 'sidebar-open');
+            } 
+            // Se estiver aberta, a gente fecha
+            else {
+                sidebar.classList.remove('w-64', 'sidebar-open');
+                sidebar.classList.add('w-16', 'sidebar-closed');
             }
         }
 
