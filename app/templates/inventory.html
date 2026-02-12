@@ -1,29 +1,27 @@
 {% extends "base.html" %}
 
-{% block header %}{% endblock %}
+{% block header %}
+<header class="bg-white shadow-sm p-4 flex justify-between items-center relative z-20 flex-shrink-0 gap-4">
+    <div class="flex-shrink-0">
+        <h2 class="text-xl font-semibold text-slate-700">📦 Inventário & Almoxarifado</h2>
+        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Controle de bens, estoque e patrimônio</p>
+    </div>
+
+    <div class="relative flex-1 max-w-lg">
+        <input type="text" name="q" placeholder="🔍 Buscar Nome, Etiqueta, Local ou Categoria..." 
+               class="w-full px-4 py-2 border rounded-full bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm"
+               hx-get="/search" hx-trigger="keyup changed delay:300ms" hx-target="#search-results" autocomplete="off">
+        <div id="search-results" class="absolute top-12 left-0 w-full bg-white shadow-xl rounded-lg overflow-hidden border border-slate-100 empty:hidden"></div>
+    </div>
+    
+    <button onclick="document.getElementById('new-item-modal').classList.remove('hidden')" 
+            class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-md hover:shadow-lg transition flex items-center gap-2 flex-shrink-0">
+        <span>+</span> Novo Item
+    </button>
+</header>
+{% endblock %}
 
 {% block content %}
-<div class="flex flex-col h-full animate-fade-in">
-    
-    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <div class="flex-shrink-0">
-            <h2 class="text-3xl font-bold text-slate-800 tracking-tight">📦 Inventário</h2>
-            <p class="text-slate-500 text-sm">Almoxarifado e Patrimônio.</p>
-        </div>
-        
-        <form action="/inventory" method="GET" class="flex-1 w-full max-w-lg relative">
-            <input type="text" name="q" value="{{ current_q }}" placeholder="🔍 Buscar por nome, etiqueta, local, categoria..." 
-                   class="w-full pl-10 pr-4 py-3 border-2 border-slate-200 rounded-2xl bg-white focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition shadow-sm font-medium text-slate-700">
-            {% if current_q or current_cat or current_loc %}
-                <a href="/inventory" class="absolute right-3 top-3.5 text-xs font-bold text-slate-400 hover:text-red-500 bg-slate-100 px-2 py-0.5 rounded">Limpar</a>
-            {% endif %}
-        </form>
-
-        <button onclick="document.getElementById('new-item-modal').classList.remove('hidden')" 
-                class="flex-shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-indigo-200 transition flex items-center gap-2">
-            <span>+</span> Novo Item
-        </button>
-    </div>
 
     {% if current_cat or current_loc %}
     <div class="flex gap-2 mb-4">

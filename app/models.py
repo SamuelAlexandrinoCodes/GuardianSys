@@ -5,6 +5,7 @@ from sqlmodel import SQLModel, Field, Relationship
 class SystemConfig(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     condo_name: str = Field(default="Condomínio Residencial")
+    user_name: Optional[str] = Field(default=None)  # Nome para "Bom dia, [Nome]"
     total_floors: int = Field(default=18)
     units_per_floor: int = Field(default=12)
     backup_path: Optional[str] = None

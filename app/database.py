@@ -35,6 +35,7 @@ def create_db_and_tables():
             "ALTER TABLE payable ADD COLUMN payee TEXT",
             "ALTER TABLE payable ADD COLUMN regularity TEXT DEFAULT 'MENSAL'",
             "ALTER TABLE payable ADD COLUMN notify_days_before INTEGER DEFAULT 7",
+            "ALTER TABLE systemconfig ADD COLUMN user_name VARCHAR",
         ]
         for col_sql in migs:
             try:

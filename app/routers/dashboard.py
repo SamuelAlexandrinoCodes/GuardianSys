@@ -33,13 +33,20 @@ def get_birthdays_month(session, year: int, month: int):
     return sorted(out, key=lambda x: x["day"])
 
 @router.get("/")
-def dashboard(request: Request, d: Optional[str] = None):
+def dashboard(request: Request, d: Optional[str] = None, date_str: Optional[str] = None):
     view_date = date.today()
-    if d:
-        try:
-            view_date = date.fromisoformat(d)
-        except ValueError:
-            pass
+    for param in (d, date_str):
+        if param:
+            try:
+                view_date = date.fromisoformat(param)
+                break
+            except ValueError:
+                pass
+
+    today = date.today()
+    meses = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"]
+    dias = ["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"]
+    nav = {"day_name": dias[view_date.weekday()], "current": view_date, "is_today": view_date == today}
 
     with Session(engine) as session:
         config = get_config(session)
@@ -89,17 +96,20 @@ def dashboard(request: Request, d: Optional[str] = None):
         seen = {m.id for m in meetings_today}
         meetings_pending = meetings_today + [m for m in meetings_reminder if m.id not in seen]
 
-    meses = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"]
-    dias = ["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"]
-    di = view_date.weekday()
-    view_date_label = f"{dias[di]}, {view_date.day} de {meses[view_date.month-1]}"
+        tasks_overdue = session.exec(select(Task).where(
+            Task.type == "TAREFA", Task.status == "PENDENTE",
+            Task.due_date.isnot(None), Task.due_date < view_date
+        )).all()
+
+    view_date_label = f"{dias[view_date.weekday()]}, {view_date.day} de {meses[view_date.month-1]}"
 
     return templates.TemplateResponse("dashboard.html", {
-        "request": request, "title": "Visão Geral", "view_date": view_date, "today": date.today(), "view_date_label": view_date_label,
+        "request": request, "title": "Visão Geral", "view_date": view_date, "today": today, "nav": nav, "view_date_label": view_date_label,
         "stats": {"total_units": total_units, "total_residents": total_residents, "owners": owners,
                   "tenants": tenants, "occupancy": occupancy, "demography": {"kids": criancas, "adults": adultos, "seniors": idosos}},
-        "birthdays_today": birthdays_today, "birthdays_month": birthdays_month,
-        "payables_pending": payables_pending, "reservations_today": res_list, "tasks_pending": tasks_pending,
+        "birthdays_today": birthdays_today, "birthdays_day": birthdays_today, "birthdays_month": birthdays_month,
+        "payables_pending": payables_pending, "payables_today": payables_pending,
+        "reservations_today": res_list, "tasks_pending": tasks_pending, "tasks_overdue": tasks_overdue, "tasks_today": tasks_pending,
         "meetings_today": meetings_today, "meetings_reminder": meetings_reminder, "meetings_pending": meetings_pending,
         "config": config
     })

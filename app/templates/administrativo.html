@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex flex-col h-full -mt-2">
+    <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+        <div>
+            <h2 class="text-2xl font-bold text-slate-800 tracking-tight">📋 Administrativo</h2>
+            <p class="text-slate-500 text-sm">Tarefas, reuniões e contas a pagar</p>
+        </div>
+    </div>
+
+    <div class="flex gap-2 mb-6">
+        <a href="/administrativo?tab=tarefas" class="px-5 py-2 rounded-lg text-sm font-bold transition {{ 'bg-indigo-600 text-white' if tab == 'tarefas' else 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200' }}">
+            ✅ Tarefas
+        </a>
+        <a href="/administrativo?tab=reunioes" class="px-5 py-2 rounded-lg text-sm font-bold transition {{ 'bg-indigo-600 text-white' if tab == 'reunioes' else 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200' }}">
+            🤝 Reuniões
+        </a>
+        <a href="/administrativo?tab=contas" class="px-5 py-2 rounded-lg text-sm font-bold transition {{ 'bg-indigo-600 text-white' if tab == 'contas' else 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200' }}">
+            💰 Contas a Pagar
+        </a>
+    </div>
+
+    {% if tab == 'tarefas' %}
+    <div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-auto">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                <h3 class="font-bold text-slate-700">📋 Lista de Afazeres</h3>
+                <button onclick="document.getElementById('task-modal').classList.remove('hidden')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold">+ Nova Tarefa</button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1 space-y-2">
+                {% if open_reservations %}
+                <a href="/reservations" class="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition">
+                    <span class="text-2xl">📅</span>
+                    <div>
+                        <p class="font-bold text-amber-800">Reserva em aberto</p>
+                        <p class="text-xs text-amber-600">{{ open_reservations|length }} reserva(s) pendente(s)</p>
+                    </div>
+                    <span class="ml-auto text-amber-600">→</span>
+                </a>
+                {% endif %}
+                {% for task in tasks_pending %}
+                <div class="flex items-start gap-3 p-3 hover:bg-slate-50 rounded-xl border border-transparent hover:border-slate-100 group">
+                    <input type="checkbox" hx-post="/administrativo/task/{{ task.id }}/toggle" hx-trigger="click" hx-swap="none" class="mt-1 w-5 h-5 text-indigo-600 rounded cursor-pointer">
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-slate-800">{{ task.title }}</p>
+                        <div class="flex gap-2 mt-1 flex-wrap">
+                            {% if task.start_date %}<span class="text-[10px] text-slate-400">Início: {{ task.start_date.strftime('%d/%m') }}</span>{% endif %}
+                            {% if task.due_date %}<span class="text-[10px] {{ 'text-red-500 font-bold' if task.due_date < today else 'text-slate-400' }}">Limite: {{ task.due_date.strftime('%d/%m') }}</span>{% endif %}
+                        </div>
+                    </div>
+                    <button hx-delete="/administrativo/task/{{ task.id }}" hx-target="closest div.flex" hx-swap="outerHTML" class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 p-1">✕</button>
+                </div>
+                {% endfor %}
+                {% if not tasks_pending and not open_reservations %}
+                <div class="text-center py-12 opacity-40">
+                    <div class="text-4xl mb-2">✨</div>
+                    <p class="text-sm">Tudo em dia!</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-100">
+                <h3 class="font-bold text-slate-700">✓ Tarefas Concluídas</h3>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1 space-y-2">
+                {% for task in tasks_completed %}
+                <div class="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <input type="checkbox" checked hx-post="/administrativo/task/{{ task.id }}/toggle" hx-trigger="click" hx-swap="none" class="mt-1 w-5 h-5 text-green-600 rounded cursor-pointer">
+                    <div class="flex-1">
+                        <p class="font-medium text-slate-500 line-through">{{ task.title }}</p>
+                        <p class="text-[10px] text-slate-400 mt-1">Concluído em {{ task.completed_at.strftime('%d/%m/%Y %H:%M') if task.completed_at else '-' }}</p>
+                    </div>
+                    <button hx-delete="/administrativo/task/{{ task.id }}" hx-target="closest div.flex" hx-swap="outerHTML" class="text-slate-300 hover:text-red-500 p-1">✕</button>
+                </div>
+                {% endfor %}
+                {% if not tasks_completed %}
+                <div class="text-center py-12 opacity-40">
+                    <p class="text-sm text-slate-400">Nenhuma tarefa concluída ainda</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% elif tab == 'reunioes' %}
+    <div class="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="font-bold text-slate-700">🤝 Reuniões</h3>
+            <button onclick="document.getElementById('meeting-modal').classList.remove('hidden')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold">+ Nova Reunião</button>
+        </div>
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto">
+            {% for m in meetings %}
+            <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-xl hover:shadow-md transition">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="bg-white text-indigo-700 text-xs font-bold px-2 py-1 rounded">{{ m.meeting_date.strftime('%d/%m') }}{% if m.meeting_time %} {{ m.meeting_time }}{% endif %}</span>
+                    <button hx-delete="/administrativo/meeting/{{ m.id }}" hx-target="closest div.bg-indigo-50" hx-swap="outerHTML" class="text-indigo-300 hover:text-red-500">✕</button>
+                </div>
+                <h4 class="font-bold text-slate-800">{{ m.title }}</h4>
+                {% if m.company %}<p class="text-xs text-slate-600 mt-1">🏢 {{ m.company }}</p>{% endif %}
+                {% if m.reason %}<p class="text-xs text-slate-500 mt-1">{{ m.reason }}</p>{% endif %}
+            </div>
+            {% endfor %}
+            {% if not meetings %}
+            <div class="col-span-full text-center py-16 opacity-40">
+                <div class="text-4xl mb-2">☕</div>
+                <p class="text-sm">Nenhuma reunião agendada</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+        <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center flex-wrap gap-4">
+            <div>
+                <span class="text-xs font-bold text-slate-400 uppercase">Total em aberto</span>
+                <span class="block text-2xl font-bold text-red-600 font-mono">R$ {{ "%.2f"|format(total_open) }}</span>
+            </div>
+            <button onclick="document.getElementById('payable-modal').classList.remove('hidden')" class="bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-bold">+ Nova Conta</button>
+        </div>
+        <div class="overflow-y-auto flex-1">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 sticky top-0 text-slate-500 text-xs uppercase font-bold">
+                    <tr>
+                        <th class="px-6 py-3">Descrição / Para quem</th>
+                        <th class="px-6 py-3">Sobre</th>
+                        <th class="px-6 py-3">Vencimento</th>
+                        <th class="px-6 py-3">Regularidade</th>
+                        <th class="px-6 py-3">Valor</th>
+                        <th class="px-6 py-3 text-center">Status</th>
+                        <th class="px-6 py-3 text-right">Ação</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                    {% for p in payables %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-6 py-3">
+                            <span class="font-bold text-slate-700">{{ p.description }}</span>
+                            {% if p.payee %}<span class="block text-xs text-slate-500">→ {{ p.payee }}</span>{% endif %}
+                        </td>
+                        <td class="px-6 py-3 text-slate-600">{{ p.subject or '-' }}</td>
+                        <td class="px-6 py-3">
+                            {% if p.due_date < today and p.status == 'ABERTO' %}
+                            <span class="text-red-600 font-bold">⚠️ {{ p.due_date.strftime('%d/%m/%Y') }}</span>
+                            {% else %}
+                            {{ p.due_date.strftime('%d/%m/%Y') }}
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-3"><span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100">{{ p.regularity }}</span></td>
+                        <td class="px-6 py-3 font-mono font-bold">R$ {{ "%.2f"|format(p.amount) }}</td>
+                        <td class="px-6 py-3 text-center">
+                            {% set c = "bg-green-100 text-green-700" if p.status == "PAGO" else "bg-red-100 text-red-700" %}
+                            <button hx-post="/administrativo/payable/{{ p.id }}/toggle" hx-swap="outerHTML" class="{{ c }} px-3 py-1 rounded-full text-xs font-bold">{{ p.status }}</button>
+                        </td>
+                        <td class="px-6 py-3 text-right">
+                            <button hx-delete="/administrativo/payable/{{ p.id }}" hx-target="closest tr" hx-swap="outerHTML" class="text-slate-300 hover:text-red-500">✕</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% if not payables %}
+            <div class="flex flex-col items-center justify-center py-20 opacity-40">
+                <div class="text-5xl mb-4">💸</div>
+                <p class="text-sm">Nenhuma conta cadastrada</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal Tarefa -->
+<div id="task-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="font-bold text-lg text-slate-800 mb-4">Nova Tarefa</h3>
+        <form action="/administrativo/task/create" method="POST" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Título / O que fazer</label>
+                <input type="text" name="title" placeholder="Ex: Ligar para eletricista" class="w-full border p-2 rounded" required>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Data de início</label>
+                    <input type="date" name="start_date" class="w-full border p-2 rounded">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Data limite</label>
+                    <input type="date" name="due_date" class="w-full border p-2 rounded">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Detalhes / Subtarefas</label>
+                <textarea name="details" placeholder="Descreva o que precisa ser feito ou liste subtarefas..." class="w-full border p-2 rounded h-24"></textarea>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('task-modal').classList.add('hidden')" class="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
+                <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded font-bold">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Reunião -->
+<div id="meeting-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+        <h3 class="font-bold text-lg text-slate-800 mb-4">Nova Reunião</h3>
+        <form action="/administrativo/meeting/create" method="POST" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Título</label>
+                <input type="text" name="title" placeholder="Ex: Reunião com administradora" class="w-full border p-2 rounded" required>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Data</label>
+                    <input type="date" name="meeting_date" class="w-full border p-2 rounded" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Horário</label>
+                    <input type="time" name="meeting_time" class="w-full border p-2 rounded">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Data de lembrete</label>
+                <input type="date" name="reminder_date" class="w-full border p-2 rounded" placeholder="Quando começar a aparecer no dashboard">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Empresa</label>
+                    <input type="text" name="company" placeholder="Nome da empresa" class="w-full border p-2 rounded">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Motivo</label>
+                    <input type="text" name="reason" placeholder="Motivo da reunião" class="w-full border p-2 rounded">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Participantes (nome, tel, email - um por linha)</label>
+                <textarea name="participants" placeholder="João - 11999... - joao@email.com" class="w-full border p-2 rounded h-20"></textarea>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Observações</label>
+                <textarea name="notes" class="w-full border p-2 rounded h-16"></textarea>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('meeting-modal').classList.add('hidden')" class="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
+                <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded font-bold">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Conta a Pagar -->
+<div id="payable-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="font-bold text-lg text-slate-800 mb-4">Nova Conta a Pagar</h3>
+        <form action="/administrativo/payable/create" method="POST" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descrição</label>
+                <input type="text" name="description" placeholder="Ex: Luz - Dezembro" class="w-full border p-2 rounded" required>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Para quem</label>
+                    <input type="text" name="payee" placeholder="Fornecedor/empresa" class="w-full border p-2 rounded">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Sobre o que</label>
+                    <input type="text" name="subject" placeholder="Serviço/produto" class="w-full border p-2 rounded">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Valor (R$)</label>
+                    <input type="number" step="0.01" name="amount" class="w-full border p-2 rounded font-mono" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Vencimento</label>
+                    <input type="date" name="due_date" class="w-full border p-2 rounded" required>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Regularidade</label>
+                    <select name="regularity" class="w-full border p-2 rounded">
+                        <option value="MENSAL">Mensal</option>
+                        <option value="ANUAL">Anual</option>
+                        <option value="IRREGULAR">Irregular</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Avisar X dias antes</label>
+                    <input type="number" name="notify_days_before" value="7" min="1" class="w-full border p-2 rounded">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('payable-modal').classList.add('hidden')" class="px-4 py-2 text-slate-500 font-bold">Cancelar</button>
+                <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded font-bold">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

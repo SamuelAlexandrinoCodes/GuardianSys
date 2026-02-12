@@ -16,12 +16,17 @@ def settings_page(request: Request):
     with Session(engine) as session: return templates.TemplateResponse("settings.html", {"request": request, "config": get_config(session)})
 
 @router.post("/settings/update")
-def update_settings(condo_name: str = Form(...), floors: int = Form(...), units: int = Form(...), backup_path: str = Form(None)):
+def update_settings(condo_name: str = Form(...), floors: int = Form(...), units: int = Form(...), backup_path: str = Form(None), user_name: str = Form(None)):
     try:
         with Session(engine) as session:
             config = get_config(session)
-            if not config: config = SystemConfig(condo_name=condo_name, total_floors=floors, units_per_floor=units)
-            else: config.condo_name = condo_name; config.total_floors = floors; config.units_per_floor = units; config.backup_path = backup_path
+            if not config: config = SystemConfig(condo_name=condo_name, total_floors=floors, units_per_floor=units, user_name=(user_name or "").strip() or None)
+            else:
+                config.condo_name = condo_name
+                config.total_floors = floors
+                config.units_per_floor = units
+                config.backup_path = backup_path
+                config.user_name = (user_name or "").strip() or None
             session.add(config)
             for floor in range(1, floors + 1):
                 for u in range(1, units + 1):
