@@ -23,13 +23,25 @@ def list_tasks(request: Request):
             "date": date 
         })
 
-@router.post("/tasks/create", response_class=RedirectResponse)
-def create_task(background_tasks: BackgroundTasks, title: str = Form(...), type: str = Form(...), due_date: str = Form(None), description: str = Form(None)):
+@router.post("/tasks/create")
+def create_task(request: Request, background_tasks: BackgroundTasks, title: str = Form(...), type: str = Form(...), due_date: str = Form(None), description: str = Form(None)):
     with Session(engine) as session:
         dd = datetime.strptime(due_date, "%Y-%m-%d").date() if (due_date and due_date.strip()) else None
-        session.add(Task(title=title, type=type, due_date=dd, description=description or None, status="PENDENTE"))
+        task = Task(title=title, type=type, due_date=dd, description=description or None, status="PENDENTE")
+        session.add(task)
         session.commit()
+        session.refresh(task)
         background_tasks.add_task(run_backup_job)
+        if request.headers.get("HX-Request"):
+            if type == "TAREFA":
+                html = templates.get_template("partials/task_row_tasks_page.html").render({
+                    "request": request, "task": task, "date": date
+                })
+            else:
+                html = templates.get_template("partials/meeting_card_tasks_page.html").render({
+                    "request": request, "meeting": task
+                })
+            return HTMLResponse(html, status_code=201, headers={"HX-Trigger": "closeTaskModal"})
     return RedirectResponse(url="/tasks", status_code=303)
 
 @router.post("/tasks/{task_id}/toggle_status")

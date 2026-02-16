@@ -257,10 +257,10 @@ def add_task_step(request: Request, task_id: int, background_tasks: BackgroundTa
         session.commit()
         session.refresh(step)
         background_tasks.add_task(run_backup_job)
-    html = templates.get_template("partials/task_step_row.html").render({
-        "request": request, "task": t, "step": step
-    })
-    return HTMLResponse(html, status_code=201)
+        html = templates.get_template("partials/task_step_row.html").render({
+            "request": request, "task": t, "step": step
+        })
+        return HTMLResponse(html, status_code=201)
 
 
 @router.patch("/administrativo/task/{task_id}/step/{step_id}/toggle")
@@ -274,11 +274,11 @@ def toggle_task_step(request: Request, task_id: int, step_id: int, background_ta
         session.commit()
         session.refresh(step)
         background_tasks.add_task(run_backup_job)
-    task_ref = SimpleNamespace(id=task_id)
-    html = templates.get_template("partials/task_step_row.html").render({
-        "request": request, "task": task_ref, "step": step
-    })
-    return HTMLResponse(html)
+        task_ref = SimpleNamespace(id=task_id)
+        html = templates.get_template("partials/task_step_row.html").render({
+            "request": request, "task": task_ref, "step": step
+        })
+        return HTMLResponse(html)
 
 
 @router.delete("/administrativo/task/{task_id}/step/{step_id}")

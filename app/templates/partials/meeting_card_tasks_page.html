@@ -1,0 +1,13 @@
+<div class="bg-white border-2 border-indigo-100 p-5 rounded-2xl relative group hover:shadow-lg hover:border-indigo-300 transition-all">
+    <div class="flex justify-between items-start mb-3">
+        <div class="bg-indigo-600 text-white text-xs font-black px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-2">
+            <span>📅</span> {{ meeting.due_date.strftime('%d/%m/%Y') if meeting.due_date else 'Sem Data Definida' }}
+        </div>
+        <button hx-delete="/tasks/{{ meeting.id }}" hx-target="closest div.relative" hx-swap="outerHTML"
+                class="text-slate-300 hover:text-red-500 bg-slate-50 hover:bg-red-50 p-2 rounded-lg transition opacity-0 group-hover:opacity-100" title="Cancelar Reunião">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+    </div>
+    <h4 class="font-bold text-slate-800 text-lg leading-tight">{{ meeting.title }}</h4>
+    <p class="text-sm text-slate-500 mt-2 leading-relaxed">{{ meeting.description or 'Pauta livre. Detalhes não informados.' }}</p>
+</div>
