@@ -26,8 +26,8 @@ def list_tasks(request: Request):
 @router.post("/tasks/create", response_class=RedirectResponse)
 def create_task(background_tasks: BackgroundTasks, title: str = Form(...), type: str = Form(...), due_date: str = Form(None), description: str = Form(None)):
     with Session(engine) as session:
-        dd = datetime.strptime(due_date, "%Y-%m-%d").date() if due_date else None
-        session.add(Task(title=title, type=type, due_date=dd, description=description, status="PENDENTE"))
+        dd = datetime.strptime(due_date, "%Y-%m-%d").date() if (due_date and due_date.strip()) else None
+        session.add(Task(title=title, type=type, due_date=dd, description=description or None, status="PENDENTE"))
         session.commit()
         background_tasks.add_task(run_backup_job)
     return RedirectResponse(url="/tasks", status_code=303)
@@ -36,7 +36,10 @@ def create_task(background_tasks: BackgroundTasks, title: str = Form(...), type:
 def toggle_task_status(task_id: int, background_tasks: BackgroundTasks):
     with Session(engine) as session:
         task = session.get(Task, task_id)
+        if not task:
+            return HTMLResponse("", status_code=404)
         task.status = "CONCLUIDO" if task.status == "PENDENTE" else "PENDENTE"
+        task.completed_at = datetime.now() if task.status == "CONCLUIDO" else None
         session.add(task)
         session.commit()
         background_tasks.add_task(run_backup_job)
@@ -50,4 +53,4 @@ def delete_task(task_id: int, background_tasks: BackgroundTasks):
             session.delete(task)
             session.commit()
             background_tasks.add_task(run_backup_job)
-    return ""
+    return HTMLResponse("")

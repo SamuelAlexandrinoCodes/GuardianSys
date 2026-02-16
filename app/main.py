@@ -9,7 +9,7 @@ from app.config import STATIC_DIR, STORAGE_DIR, BASE_DIR
 import os
 
 # Importação LIMPA dos routers (Sem duplicatas)
-from app.routers import dashboard, reservations, units, inventory, administrativo, system, calendar_router
+from app.routers import dashboard, reservations, units, inventory, administrativo, system, calendar_router, tasks
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -50,6 +50,7 @@ app.mount("/storage", StaticFiles(directory=STORAGE_DIR), name="storage")
 
 app.include_router(dashboard.router)
 app.include_router(calendar_router.router)
+app.include_router(tasks.router)
 app.include_router(units.router)
 app.include_router(reservations.router)
 app.include_router(inventory.router)
