@@ -5,3 +5,28 @@
 <div id="task-completed-{{ task.id }}" hx-swap-oob="outerHTML"></div>
 {% with oob_append_pending=true %}{% include "partials/task_row_pending.html" %}{% endwith %}
 {% endif %}
+
+<script>
+    setTimeout(() => {
+        ['pending-tasks-list', 'completed-tasks-list'].forEach(id => {
+            const list = document.getElementById(id);
+            if (!list) return;
+            
+            // Conta as tarefas reiais na tela
+            const tasks = list.querySelectorAll('.task-item');
+            
+            // Procura a mensagem "Nenhuma tarefa/Tudo limpo" e exibe/esconde
+            Array.from(list.children).forEach(child => {
+                if (!child.classList.contains('task-item')) {
+                    child.style.display = tasks.length > 0 ? 'none' : 'block';
+                }
+            });
+            
+            // Sobe na árvore HTML e acha o número ao lado do título (ex: ✅ Concluídas <span ...>0</span>) e atualiza
+            const header = list.closest('.flex-col').querySelector('h3 span');
+            if (header) {
+                header.innerText = tasks.length;
+            }
+        });
+    }, 20); // Delay mínimo só para o HTMX terminar de desenhar o HTML
+</script>

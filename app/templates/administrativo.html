@@ -362,6 +362,7 @@
         });
     })();
     window.updateCompletedCount = updateCompletedCount;
+    window.guardianOnConfirmSuccess = updateCompletedCount;
     
     // --- Formatação automática de campos de hora (24h) ---
     function setupTimeInput(input) {
@@ -588,8 +589,40 @@
         }
         var addStepBtn = inner.querySelector('.sheet-add-step');
         var addStepForm = document.getElementById('sheet-add-step-form-' + taskId);
+        var stepsList = document.getElementById('sheet-steps-list-' + taskId);
         if (addStepBtn && addStepForm) {
             addStepBtn.onclick = function() { addStepForm.classList.toggle('hidden'); if (!addStepForm.classList.contains('hidden')) addStepForm.querySelector('input').focus(); };
+        }
+        if (addStepForm && stepsList) {
+            addStepForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                if (this.dataset.submitting === '1') return;
+                var input = this.querySelector('input[name=title]');
+                var title = input && input.value ? input.value.trim() : '';
+                if (!title) return;
+                this.dataset.submitting = '1';
+                var formEl = this;
+                var body = new URLSearchParams();
+                body.set('title', title);
+                fetch('/administrativo/task/' + taskId + '/step', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body.toString()
+                })
+                    .then(function(r) {
+                        if (!r.ok) return r.text().then(function(t) { throw new Error(r.status + ': ' + (t || r.statusText)); });
+                        return r.text();
+                    })
+                    .then(function(html) {
+                        if (!html || !html.trim()) return;
+                        stepsList.insertAdjacentHTML('beforeend', html);
+                        if (window.htmx) htmx.process(stepsList.lastElementChild);
+                        input.value = '';
+                        formEl.classList.add('hidden');
+                    })
+                    .catch(function(err) { alert('Não foi possível adicionar a subtarefa. ' + (err.message || '')); })
+                    .finally(function() { delete formEl.dataset.submitting; });
+            });
         }
         var titleInput = inner.querySelector('.sheet-task-title');
         if (titleInput) {

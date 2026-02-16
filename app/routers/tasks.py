@@ -43,7 +43,7 @@ def toggle_task_status(task_id: int, background_tasks: BackgroundTasks):
         session.add(task)
         session.commit()
         background_tasks.add_task(run_backup_job)
-    return ""
+    return HTMLResponse("")
 
 @router.delete("/tasks/{task_id}")
 def delete_task(task_id: int, background_tasks: BackgroundTasks):

@@ -2,8 +2,10 @@
 <div class="task-sheet-inner flex flex-col h-full bg-slate-50" data-task-id="{{ task.id }}">
     {# --- Cabeçalho: checkbox + título editável --- #}
     <div class="flex items-start gap-4 p-6 border-b border-slate-200 bg-white">
+        
         <input type="checkbox" {{ 'checked' if task.status == 'CONCLUIDO' else '' }}
-               class="sheet-task-checkbox mt-1.5 w-6 h-6 text-indigo-600 rounded-full cursor-pointer flex-shrink-0" data-task-id="{{ task.id }}">
+               class="sheet-task-checkbox appearance-none mt-1.5 w-6 h-6 border-2 border-slate-300 rounded-full bg-white checked:bg-indigo-600 checked:border-indigo-600 cursor-pointer flex-shrink-0 transition-all bg-center bg-no-repeat bg-[length:70%] checked:bg-[url('data:image/svg+xml;utf8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22%20fill=%22white%22%3E%3Cpath%20fill-rule=%22evenodd%22%20d=%22M16.707%205.293a1%201%200%20010%201.414l-8%208a1%201%200%2001-1.414%200l-4-4a1%201%200%20011.414-1.414L8%2012.586l7.293-7.293a1%201%200%20011.414%200z%22%20clip-rule=%22evenodd%22/%3E%3C/svg%3E')]" data-task-id="{{ task.id }}">
+        
         <div class="flex-1 min-w-0">
             <input type="text" value="{{ task.title }}" name="title" data-task-id="{{ task.id }}"
                    class="sheet-task-title w-full text-lg font-bold text-slate-800 bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-indigo-500 focus:ring-0 px-0 py-0.5"
@@ -14,72 +16,33 @@
     <div class="flex-1 overflow-y-auto p-6 space-y-1">
         {# --- Steps (Subtarefas) --- #}
         <div class="mb-4">
-            <button type="button" class="sheet-add-step flex items-center gap-2 w-full text-left py-2.5 px-3 rounded-lg text-slate-600 hover:bg-slate-100 transition text-sm font-medium"
-                    data-task-id="{{ task.id }}">
-                <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                Adicionar etapa
+            <button type="button" class="sheet-add-step text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 mb-2">
+                <span>+</span> Adicionar Subtarefa
             </button>
-            <form id="sheet-add-step-form-{{ task.id }}" class="hidden mt-1 flex items-center gap-2" hx-post="/administrativo/task/{{ task.id }}/step" hx-target="#sheet-steps-{{ task.id }}" hx-swap="beforeend" hx-on::after-request="this.classList.add('hidden'); this.querySelector('input').value = '';">
-                <input type="text" name="title" placeholder="Nome da etapa" class="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2" required>
-                <button type="submit" class="text-indigo-600 font-medium text-sm">Adicionar</button>
-                <button type="button" class="text-slate-500 text-sm" onclick="this.closest('form').classList.add('hidden')">Cancelar</button>
+            <form id="sheet-add-step-form-{{ task.id }}" method="post" action="/administrativo/task/{{ task.id }}/step" class="hidden mb-2">
+                <input type="text" name="title" placeholder="Nome da subtarefa (Enter para adicionar)" required
+                       class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none">
             </form>
-            <div id="sheet-steps-{{ task.id }}" class="space-y-1 mt-1">
+            <div id="sheet-steps-list-{{ task.id }}" class="sheet-steps-list space-y-2">
                 {% for step in steps %}
-                <div class="sheet-step flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-100" data-step-id="{{ step.id }}">
-                    <input type="checkbox" {{ 'checked' if step.done else '' }}
-                           hx-patch="/administrativo/task/{{ task.id }}/step/{{ step.id }}/toggle" hx-trigger="click" hx-swap="outerHTML" hx-target="closest .sheet-step"
-                           class="w-4 h-4 text-indigo-600 rounded-full cursor-pointer flex-shrink-0">
-                    <span class="sheet-step-title flex-1 text-sm {{ 'line-through text-slate-400' if step.done else 'text-slate-700' }}">{{ step.title }}</span>
-                </div>
+                {% include "partials/task_step_row.html" %}
                 {% endfor %}
             </div>
         </div>
 
-        {# --- My Day (Agenda) --- #}
-        <button type="button" class="sheet-my-day flex items-center gap-3 w-full text-left py-2.5 px-3 rounded-lg hover:bg-slate-100 transition text-sm text-slate-700"
-                data-task-id="{{ task.id }}" data-in-agenda="{{ '1' if task.in_agenda else '0' }}">
-            <svg class="w-5 h-5 {{ 'text-amber-500' if task.in_agenda else 'text-slate-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"></path></svg>
-            <span>{{ 'Remover da Agenda' if task.in_agenda else 'Adicionar à Agenda' }}</span>
-        </button>
-
-        {# --- Lembrete (Smart picker) --- #}
-        <div class="smart-date-wrap flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-slate-100 transition relative">
-            <svg class="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
-            <button type="button" class="sheet-reminder-trigger flex-1 text-left text-sm text-slate-700 flex items-center justify-between">
-                <span>Lembrete</span>
-                <span class="sheet-reminder-value text-slate-500 text-xs">{{ task.reminder_at.strftime('%d/%m %H:%M') if task.reminder_at else 'Não definido' }}</span>
-            </button>
-            <input type="hidden" name="reminder_at" class="sheet-reminder-input" value="{{ task.reminder_at.strftime('%Y-%m-%dT%H:%M') if task.reminder_at else '' }}" data-task-id="{{ task.id }}">
+        {# --- Datas --- #}
+        <div class="grid grid-cols-2 gap-4 mt-6 border-t border-slate-200 pt-4">
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Data de Início</label>
+                <input type="date" name="start_date" value="{{ task.start_date.isoformat() if task.start_date else '' }}" data-task-id="{{ task.id }}"
+                       class="sheet-date-input w-full text-sm border border-slate-200 rounded p-2 focus:border-indigo-500 focus:ring-0">
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Data de Entrega</label>
+                <input type="date" name="due_date" value="{{ task.due_date.isoformat() if task.due_date else '' }}" data-task-id="{{ task.id }}"
+                       class="sheet-date-input w-full text-sm border border-slate-200 rounded p-2 focus:border-indigo-500 focus:ring-0">
+            </div>
         </div>
-
-        {# --- Data de vencimento (Smart picker) --- #}
-        <div class="smart-date-wrap flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-slate-100 transition relative">
-            <svg class="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            <button type="button" class="sheet-due-trigger flex-1 text-left text-sm text-slate-700 flex items-center justify-between">
-                <span>Data de entrega</span>
-                <span class="sheet-due-value text-slate-500 text-xs">{{ task.due_date.strftime('%d/%m/%Y') if task.due_date else 'Não definido' }}</span>
-            </button>
-            <input type="hidden" name="due_date" class="sheet-due-date" value="{{ task.due_date.isoformat() if task.due_date else '' }}" data-task-id="{{ task.id }}">
-        </div>
-
-        {# --- Repetir --- #}
-        <div class="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-slate-100 transition">
-            <svg class="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-            <label class="flex-1 text-sm text-slate-700">Repetir</label>
-            <select name="repeat" class="sheet-repeat text-sm border border-slate-200 rounded-lg px-2 py-1.5 w-40" data-task-id="{{ task.id }}">
-                <option value="NONE" {{ 'selected' if task.repeat == 'NONE' else '' }}>Nunca</option>
-                <option value="DAILY" {{ 'selected' if task.repeat == 'DAILY' else '' }}>Diariamente</option>
-                <option value="WEEKLY" {{ 'selected' if task.repeat == 'WEEKLY' else '' }}>Semanalmente</option>
-                <option value="MONTHLY" {{ 'selected' if task.repeat == 'MONTHLY' else '' }}>Mensalmente</option>
-            </select>
-        </div>
-
-        {# --- Adicionar arquivo --- #}
-        <a href="#" class="sheet-add-file flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-slate-100 transition text-sm text-slate-700" data-task-id="{{ task.id }}">
-            <svg class="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
-            Adicionar arquivo
-        </a>
 
         {# --- Notas --- #}
         <div class="mt-4">
@@ -92,7 +55,7 @@
         <span>Criado em {% if task.created_at %}{{ task.created_at.strftime('%d/%m/%Y %H:%M') }}{% elif task.completed_at %}{{ task.completed_at.strftime('%d/%m/%Y %H:%M') }}{% else %}-{% endif %}</span>
         <button type="button" onclick="var rowId = '{{ 'task-completed-' if task.status == 'CONCLUIDO' else 'task-pending-' }}{{ task.id }}'; document.getElementById('task-sheet-overlay').classList.add('hidden'); confirmAction('/administrativo/task/{{ task.id }}', '#' + rowId, 'Excluir tarefa', 'Tem certeza que deseja excluir esta tarefa?');"
                 class="p-2 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            🗑️ Excluir
         </button>
     </div>
 </div>

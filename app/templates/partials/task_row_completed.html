@@ -1,7 +1,9 @@
 <div class="task-item bg-white border border-slate-300 rounded-lg shadow-sm hover:shadow-md transition-all p-4 cursor-move group/item" data-task-id="{{ task.id }}" {{ 'hx-swap-oob="beforeend:#completed-tasks-list"' if oob_append_completed is defined and oob_append_completed else '' }}>
     <div id="task-completed-{{ task.id }}" class="task-row flex items-center gap-3 completed-item"
          data-task-id="{{ task.id }}" data-title="{{ task.title|e }}" data-start-date="{{ task.start_date.isoformat() if task.start_date else '' }}" data-due-date="{{ task.due_date.isoformat() if task.due_date else '' }}" data-details="{{ task.details or '' }}">
-        <input type="checkbox" checked class="task-checkbox mt-0.5 w-5 h-5 text-green-600 rounded-full cursor-pointer flex-shrink-0" data-task-id="{{ task.id }}" data-is-pending="false">
+        
+        <input type="checkbox" checked class="task-checkbox appearance-none mt-0.5 w-5 h-5 border-2 border-slate-300 rounded-full bg-white checked:bg-green-500 checked:border-green-500 cursor-pointer flex-shrink-0 transition-all bg-center bg-no-repeat bg-[length:70%] checked:bg-[url('data:image/svg+xml;utf8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2020%2020%22%20fill=%22white%22%3E%3Cpath%20fill-rule=%22evenodd%22%20d=%22M16.707%205.293a1%201%200%20010%201.414l-8%208a1%201%200%2001-1.414%200l-4-4a1%201%200%20011.414-1.414L8%2012.586l7.293-7.293a1%201%200%20011.414%200z%22%20clip-rule=%22evenodd%22/%3E%3C/svg%3E')]" data-task-id="{{ task.id }}" data-is-pending="false">
+        
         <div class="flex-1 min-w-0 opacity-90 cursor-pointer" data-task-id="{{ task.id }}">
             <p class="task-title font-medium text-slate-500 line-through">{{ task.title }}</p>
             <p class="text-[10px] text-slate-400 mt-0.5">Concluído em {{ task.completed_at.strftime('%d/%m/%Y %H:%M') if task.completed_at else '-' }}</p>
@@ -9,16 +11,12 @@
         <button type="button" onclick="confirmAction('/administrativo/task/{{ task.id }}', '.task-item[data-task-id=\'{{ task.id }}\']', 'Excluir tarefa', 'Tem certeza que deseja excluir esta tarefa?')"
                 class="task-delete text-slate-300 hover:text-red-500 p-1.5 rounded transition flex-shrink-0">✕</button>
     </div>
+    
     {% set _steps = task_steps if task_steps is defined else (subtasks_by_task_id or {}).get(task.id, []) %}
     {% if _steps %}
     <div class="task-subtasks mt-2 ml-8 p-2 rounded-md bg-slate-50 border-l-2 border-slate-300">
         {% for step in _steps %}
-        <div class="sheet-step flex items-center gap-2 py-1.5 text-sm" data-step-id="{{ step.id }}" onclick="event.stopPropagation()">
-            <input type="checkbox" {{ 'checked' if step.done else '' }}
-                   hx-patch="/administrativo/task/{{ task.id }}/step/{{ step.id }}/toggle" hx-trigger="click" hx-swap="outerHTML" hx-target="closest .sheet-step"
-                   class="w-4 h-4 text-green-600 rounded-full cursor-pointer flex-shrink-0">
-            <span class="sheet-step-title flex-1 {{ 'line-through text-slate-400' if step.done else 'text-slate-500' }}">{{ step.title }}</span>
-        </div>
+        {% include "partials/task_step_row.html" %}
         {% endfor %}
     </div>
     {% endif %}

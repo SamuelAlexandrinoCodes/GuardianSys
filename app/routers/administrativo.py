@@ -1,5 +1,6 @@
 """Módulo Administrativo: Tarefas, Reuniões e Contas a Pagar."""
 from datetime import date, datetime
+from types import SimpleNamespace
 from typing import Optional
 import os
 from fastapi import APIRouter, Request, Form, BackgroundTasks, Query, Body
@@ -143,7 +144,7 @@ def toggle_task(request: Request, task_id: int, background_tasks: BackgroundTask
                 "task_steps": task_steps, "subtasks_by_task_id": subtasks_by_task_id
             })
             return HTMLResponse(html)
-    return ""
+    return HTMLResponse("")
 
 
 @router.delete("/administrativo/task/{task_id}")
@@ -154,7 +155,7 @@ def delete_task(task_id: int, background_tasks: BackgroundTasks):
             session.delete(t)
             session.commit()
             background_tasks.add_task(run_backup_job)
-    return ""
+    return HTMLResponse("")
 
 
 @router.post("/administrativo/tasks/reorder")
@@ -243,23 +244,22 @@ def update_task(request: Request, task_id: int, background_tasks: BackgroundTask
 
 
 @router.post("/administrativo/task/{task_id}/step")
-def add_task_step(request: Request, task_id: int, background_tasks: BackgroundTasks, title: str = Form(...)):
+def add_task_step(request: Request, task_id: int, background_tasks: BackgroundTasks, title: str = Form(None)):
     with Session(engine) as session:
         t = session.get(Task, task_id)
         if not t:
             return HTMLResponse("", status_code=404)
+        title_val = (title or "").strip() or "Nova etapa"
         last = session.exec(select(TaskStep).where(TaskStep.task_id == task_id).order_by(TaskStep.sort_order.desc())).first()
         order = (last.sort_order + 1) if last else 0
-        step = TaskStep(task_id=task_id, title=title.strip() or "Nova etapa", sort_order=order)
+        step = TaskStep(task_id=task_id, title=title_val, sort_order=order)
         session.add(step)
         session.commit()
         session.refresh(step)
         background_tasks.add_task(run_backup_job)
-    html = f'''<div class="sheet-step flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-100" data-step-id="{step.id}">
-        <input type="checkbox" hx-patch="/administrativo/task/{task_id}/step/{step.id}/toggle" hx-trigger="click" hx-swap="outerHTML" hx-target="closest .sheet-step"
-               class="w-4 h-4 text-indigo-600 rounded cursor-pointer flex-shrink-0">
-        <span class="sheet-step-title flex-1 text-sm text-slate-700">{step.title}</span>
-    </div>'''
+    html = templates.get_template("partials/task_step_row.html").render({
+        "request": request, "task": t, "step": step
+    })
     return HTMLResponse(html, status_code=201)
 
 
@@ -274,14 +274,22 @@ def toggle_task_step(request: Request, task_id: int, step_id: int, background_ta
         session.commit()
         session.refresh(step)
         background_tasks.add_task(run_backup_job)
-    done_class = "line-through text-slate-400" if step.done else "text-slate-700"
-    checked = " checked" if step.done else ""
-    html = f'''<div class="sheet-step flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-100" data-step-id="{step.id}">
-        <input type="checkbox"{checked} hx-patch="/administrativo/task/{task_id}/step/{step.id}/toggle" hx-trigger="click" hx-swap="outerHTML" hx-target="closest .sheet-step"
-               class="w-4 h-4 text-indigo-600 rounded cursor-pointer flex-shrink-0">
-        <span class="sheet-step-title flex-1 text-sm {done_class}">{step.title}</span>
-    </div>'''
+    task_ref = SimpleNamespace(id=task_id)
+    html = templates.get_template("partials/task_step_row.html").render({
+        "request": request, "task": task_ref, "step": step
+    })
     return HTMLResponse(html)
+
+
+@router.delete("/administrativo/task/{task_id}/step/{step_id}")
+def delete_task_step(task_id: int, step_id: int, background_tasks: BackgroundTasks):
+    with Session(engine) as session:
+        step = session.get(TaskStep, step_id)
+        if step and step.task_id == task_id:
+            session.delete(step)
+            session.commit()
+            background_tasks.add_task(run_backup_job)
+    return HTMLResponse("")
 
 
 @router.post("/administrativo/task/{task_id}/my-day")
@@ -380,7 +388,7 @@ def delete_meeting(mid: int, background_tasks: BackgroundTasks):
             session.delete(m)
             session.commit()
             background_tasks.add_task(run_backup_job)
-    return ""
+    return HTMLResponse("")
 
 
 # --- CONTAS A PAGAR ---
@@ -405,7 +413,7 @@ def toggle_payable(pid: int, background_tasks: BackgroundTasks):
     with Session(engine) as session:
         p = session.get(Payable, pid)
         if not p:
-            return ""
+            return HTMLResponse("", status_code=404)
         p.status = "PAGO" if p.status == "ABERTO" else "ABERTO"
         session.add(p)
         session.commit()
@@ -422,4 +430,4 @@ def delete_payable(pid: int, background_tasks: BackgroundTasks):
             session.delete(p)
             session.commit()
             background_tasks.add_task(run_backup_job)
-    return ""
+    return HTMLResponse("")
