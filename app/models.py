@@ -5,7 +5,7 @@ from sqlmodel import SQLModel, Field, Relationship
 class SystemConfig(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     condo_name: str = Field(default="Condomínio Residencial")
-    user_name: Optional[str] = Field(default=None)  # Nome para "Bom dia, [Nome]"
+    user_name: Optional[str] = Field(default=None)  # Mantido: Nome para "Bom dia"
     total_floors: int = Field(default=18)
     units_per_floor: int = Field(default=12)
     backup_path: Optional[str] = None
@@ -26,10 +26,15 @@ class Resident(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     unit_id: int = Field(foreign_key="unit.id")
     full_name: str = Field(index=True)
-    birth_date: date
+    
+    # --- A ÚNICA MUDANÇA ESTÁ AQUI ---
+    # Mudamos de "birth_date: date" para "Optional[date] = None"
+    birth_date: Optional[date] = None
+    # ---------------------------------
+
     phone: Optional[str] = None
     email: Optional[str] = None
-    profile_type: str
+    profile_type: str 
     photo_path: Optional[str] = None 
     pool_access_expiry: Optional[date] = None 
     is_active: bool = Field(default=True)
@@ -65,58 +70,64 @@ class Inventory(SQLModel, table=True):
     quantity: int = Field(default=0)
     location: Optional[str] = None 
     purchase_link: Optional[str] = None 
-    
-    # NOVOS ATRIBUTOS DA MISSÃO 3A
     entry_date: Optional[date] = None
     write_off_date: Optional[date] = None
-    
     last_updated: datetime = Field(default_factory=datetime.now)
+
+class TaskStep(SQLModel, table=True):
+    """Subtarefa (step) de uma Task."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_id: int = Field(foreign_key="task.id")
+    title: str
+    done: bool = Field(default=False)
+    sort_order: int = Field(default=0)
+
 
 class Task(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     description: Optional[str] = None
-    details: Optional[str] = None  # JSON: subtarefas, notas ricas
+    details: Optional[str] = None
     start_date: Optional[date] = None
     due_date: Optional[date] = None
     completed_at: Optional[datetime] = None
     type: str = Field(default="TAREFA")
     status: str = Field(default="PENDENTE")
+    # Campos estilo MS To Do
+    reminder_at: Optional[datetime] = None
+    repeat: str = Field(default="NONE")  # NONE, DAILY, WEEKLY, MONTHLY
+    in_agenda: bool = Field(default=True)
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    files_folder: Optional[str] = None
+    order_index: int = Field(default=0)
 
 class Meeting(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     meeting_date: date
-    meeting_time: Optional[str] = None  # "14:00"
+    meeting_time: Optional[str] = None
     reminder_date: Optional[date] = None
     company: Optional[str] = None
     reason: Optional[str] = None
     notes: Optional[str] = None
-    participants: Optional[str] = None  # JSON: [{name, phone, email}]
+    participants: Optional[str] = None
+    description: Optional[str] = None
+    start_time: Optional[str] = None
+    location: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 class Payable(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     description: str
-    subject: Optional[str] = None  # sobre o que é a conta
-    payee: Optional[str] = None  # para quem pagamos
+    subject: Optional[str] = None
+    payee: Optional[str] = None
     amount: float
     due_date: date
-    regularity: str = Field(default="MENSAL")  # MENSAL, ANUAL, IRREGULAR
+    regularity: str = Field(default="MENSAL")
     notify_days_before: int = Field(default=7)
     barcode: Optional[str] = None
     status: str = Field(default="ABERTO") 
-
-class Document(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    unit_id: int = Field(foreign_key="unit.id")
-    reservation_id: Optional[int] = Field(default=None, foreign_key="reservation.id")
-    filename: str
-    filepath: str
-    category: str
-    upload_date: datetime = Field(default_factory=datetime.now)
-    unit: Unit = Relationship(back_populates="documents")
-    reservation: Optional["Reservation"] = Relationship(back_populates="documents")
 
 class Reservation(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -124,11 +135,24 @@ class Reservation(SQLModel, table=True):
     resident_id: Optional[int] = Field(default=None, foreign_key="resident.id")
     area_name: str
     reservation_date: date
-    status: str = Field(default="Fazer boleto") 
-    cancelled_by: Optional[str] = None 
+    status: str = Field(default="Fazer boleto")
+    cancelled_by: Optional[str] = None
+    confirmed_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.now)
-    confirmed_at: Optional[datetime] = None  # quando status = Pago/Confirmado
     
     unit: Unit = Relationship(back_populates="reservations")
     resident: Optional[Resident] = Relationship(back_populates="reservations")
     documents: List["Document"] = Relationship(back_populates="reservation")
+
+class Document(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    unit_id: int = Field(foreign_key="unit.id")
+    # Mantido o relacionamento com Reserva
+    reservation_id: Optional[int] = Field(default=None, foreign_key="reservation.id")
+    filename: str
+    filepath: str
+    category: str
+    upload_date: datetime = Field(default_factory=datetime.now)
+    
+    unit: Unit = Relationship(back_populates="documents")
+    reservation: Optional[Reservation] = Relationship(back_populates="documents")

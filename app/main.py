@@ -14,7 +14,7 @@ from app.routers import dashboard, reservations, units, inventory, administrativ
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from datetime import date
-    from app.database import migrate_storage_to_unit_folders, migrate_reservation_folders_to_date_format, cleanup_old_reservation_documents
+    from app.database import migrate_storage_to_unit_folders, migrate_reservation_folders_to_date_format, cleanup_old_reservation_documents, cleanup_old_task_folders
     create_db_and_tables()
     try:
         migrate_storage_to_unit_folders()
@@ -30,6 +30,10 @@ async def lifespan(app: FastAPI):
             last = open(marker).read().strip() if os.path.exists(marker) else ""
             if last != current_month:
                 cleanup_old_reservation_documents()
+                try:
+                    cleanup_old_task_folders()
+                except Exception:
+                    pass
                 open(marker, "w").write(current_month)
         except Exception:
             pass

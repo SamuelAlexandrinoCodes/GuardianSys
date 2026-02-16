@@ -36,6 +36,20 @@ def create_db_and_tables():
             "ALTER TABLE payable ADD COLUMN regularity TEXT DEFAULT 'MENSAL'",
             "ALTER TABLE payable ADD COLUMN notify_days_before INTEGER DEFAULT 7",
             "ALTER TABLE systemconfig ADD COLUMN user_name VARCHAR",
+            "ALTER TABLE meeting ADD COLUMN meeting_time VARCHAR",
+            "ALTER TABLE meeting ADD COLUMN reminder_date DATE",
+            "ALTER TABLE meeting ADD COLUMN company VARCHAR",
+            "ALTER TABLE meeting ADD COLUMN reason VARCHAR",
+            "ALTER TABLE meeting ADD COLUMN notes VARCHAR",
+            "ALTER TABLE meeting ADD COLUMN participants VARCHAR",
+            "ALTER TABLE meeting ADD COLUMN created_at DATETIME",
+            "ALTER TABLE task ADD COLUMN reminder_at DATETIME",
+            "ALTER TABLE task ADD COLUMN repeat VARCHAR DEFAULT 'NONE'",
+            "ALTER TABLE task ADD COLUMN in_agenda INTEGER DEFAULT 1",
+            "ALTER TABLE task ADD COLUMN notes TEXT",
+            "ALTER TABLE task ADD COLUMN created_at DATETIME",
+            "ALTER TABLE task ADD COLUMN files_folder VARCHAR",
+            "ALTER TABLE task ADD COLUMN order_index INTEGER DEFAULT 0",
         ]
         for col_sql in migs:
             try:
@@ -154,6 +168,35 @@ def cleanup_old_reservation_documents():
                 os.rmdir(res_path)
     except Exception:
         pass
+
+def cleanup_old_task_folders():
+    """Remove pastas de arquivos de tarefas concluídas há mais de 6 meses (completed_at)."""
+    from datetime import datetime, timedelta
+    from app.models import Task
+    from app.config import STORAGE_DIR
+
+    cutoff = datetime.now() - timedelta(days=180)
+    with Session(engine) as session:
+        old_tasks = session.exec(
+            select(Task).where(
+                Task.status == "CONCLUIDO",
+                Task.completed_at.isnot(None),
+                Task.completed_at < cutoff,
+                Task.files_folder.isnot(None)
+            )
+        ).all()
+        for t in old_tasks:
+            if not t.files_folder:
+                continue
+            full_path = os.path.join(STORAGE_DIR, t.files_folder)
+            try:
+                if os.path.exists(full_path) and os.path.isdir(full_path):
+                    shutil.rmtree(full_path)
+            except Exception:
+                pass
+            t.files_folder = None
+            session.add(t)
+        session.commit()
 
 def get_session():
     with Session(engine) as session:

@@ -8,7 +8,9 @@ from app.config import templates, get_config
 
 router = APIRouter()
 
-def get_life_stage(birth_date: date):
+def get_life_stage(birth_date: Optional[date]):
+    if birth_date is None:
+        return "ADULTO"
     today = date.today()
     age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
     if age < 18: return "CRIANÇA"
@@ -19,7 +21,7 @@ def get_birthdays_day(session, d: date):
     results = session.exec(select(Resident, Unit).where(Resident.unit_id == Unit.id, Resident.is_active == True)).all()
     out = []
     for res, unit in results:
-        if res.birth_date.month == d.month and res.birth_date.day == d.day:
+        if res.birth_date and res.birth_date.month == d.month and res.birth_date.day == d.day:
             age = d.year - res.birth_date.year
             out.append({"name": res.full_name, "age": age, "unit_id": unit.id, "unit_number": unit.number})
     return out
@@ -28,7 +30,7 @@ def get_birthdays_month(session, year: int, month: int):
     results = session.exec(select(Resident, Unit).where(Resident.unit_id == Unit.id, Resident.is_active == True)).all()
     out = []
     for res, unit in results:
-        if res.birth_date.month == month:
+        if res.birth_date and res.birth_date.month == month:
             out.append({"name": res.full_name, "day": res.birth_date.day, "unit_id": unit.id, "unit_number": unit.number})
     return sorted(out, key=lambda x: x["day"])
 

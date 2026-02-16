@@ -94,7 +94,7 @@
                     </div>
                 </td>
                 <td class="px-2 py-3 text-center align-middle">
-                    <div hx-get="/resident/{{ res.id }}/edit_date" hx-trigger="click" hx-swap="innerHTML" class="cursor-pointer hover:bg-slate-100 p-1 rounded text-slate-600 text-xs">{{ res.birth_date.strftime('%d/%m/%Y') }}</div>
+                    <div hx-get="/resident/{{ res.id }}/edit_date" hx-trigger="click" hx-swap="innerHTML" class="cursor-pointer hover:bg-slate-100 p-1 rounded text-slate-600 text-xs">{{ res.birth_date.strftime('%d/%m/%Y') if res.birth_date else '—' }}</div>
                 </td>
                 <td class="px-4 py-3 align-middle">
                     <div class="flex flex-col gap-1">

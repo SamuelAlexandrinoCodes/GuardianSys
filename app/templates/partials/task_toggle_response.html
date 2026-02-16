@@ -1,0 +1,7 @@
+{% if new_status == 'CONCLUIDO' %}
+<div id="task-pending-{{ task.id }}" hx-swap-oob="outerHTML"></div>
+{% with oob_append_completed=true %}{% include "partials/task_row_completed.html" %}{% endwith %}
+{% else %}
+<div id="task-completed-{{ task.id }}" hx-swap-oob="outerHTML"></div>
+{% with oob_append_pending=true %}{% include "partials/task_row_pending.html" %}{% endwith %}
+{% endif %}

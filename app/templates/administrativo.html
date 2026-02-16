@@ -1,112 +1,259 @@
 {% extends "base.html" %}
 
-{% block content %}
-<div class="flex flex-col h-full -mt-2">
-    <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
-        <div>
-            <h2 class="text-2xl font-bold text-slate-800 tracking-tight">📋 Administrativo</h2>
-            <p class="text-slate-500 text-sm">Tarefas, reuniões e contas a pagar</p>
-        </div>
-    </div>
+{% block header %}
+{# Cabeçalho removido: tabs são o título principal (Missão 5) #}
+<header class="flex-shrink-0"></header>
+{% endblock %}
 
-    <div class="flex gap-2 mb-6">
-        <a href="/administrativo?tab=tarefas" class="px-5 py-2 rounded-lg text-sm font-bold transition {{ 'bg-indigo-600 text-white' if tab == 'tarefas' else 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200' }}">
-            ✅ Tarefas
+{% block content %}
+<style>
+/* Optimistic UI: feedback visual instantâneo ao marcar/desmarcar tarefa (estilo MS To Do) */
+.task-row-removing { opacity: 0; transform: scale(0.98); pointer-events: none; transition: opacity 0.12s ease-out, transform 0.12s ease-out; }
+.task-row-enter { animation: taskRowEnter 0.2s ease-out; }
+@keyframes taskRowEnter { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+<div class="flex flex-col h-full -mt-2 {{ 'max-w-5xl' if tab == 'tarefas' else 'max-w-3xl' }} mx-auto w-full">
+    {# --- Cabeçalho principal: abas como títulos grandes (Missão 5) --- #}
+    <nav class="flex gap-8 border-b border-slate-200 mb-6 flex-shrink-0 pb-1" role="tablist">
+        <a href="/administrativo?tab=tarefas" class="text-2xl font-bold transition {{ 'text-slate-900 border-b-2 border-slate-900 -mb-px pb-1' if tab == 'tarefas' else 'text-slate-400 hover:text-slate-600' }}">
+            Tarefas
         </a>
-        <a href="/administrativo?tab=reunioes" class="px-5 py-2 rounded-lg text-sm font-bold transition {{ 'bg-indigo-600 text-white' if tab == 'reunioes' else 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200' }}">
-            🤝 Reuniões
+        <a href="/administrativo?tab=reunioes" class="text-2xl font-bold transition {{ 'text-slate-900 border-b-2 border-slate-900 -mb-px pb-1' if tab == 'reunioes' else 'text-slate-400 hover:text-slate-600' }}">
+            Reuniões
         </a>
-        <a href="/administrativo?tab=contas" class="px-5 py-2 rounded-lg text-sm font-bold transition {{ 'bg-indigo-600 text-white' if tab == 'contas' else 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200' }}">
-            💰 Contas a Pagar
+        <a href="/administrativo?tab=contas" class="text-2xl font-bold transition {{ 'text-slate-900 border-b-2 border-slate-900 -mb-px pb-1' if tab == 'contas' else 'text-slate-400 hover:text-slate-600' }}">
+            Contas a Pagar
         </a>
-    </div>
+    </nav>
 
     {% if tab == 'tarefas' %}
-    <div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-auto">
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-                <h3 class="font-bold text-slate-700">📋 Lista de Afazeres</h3>
-                <button onclick="document.getElementById('task-modal').classList.remove('hidden')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold">+ Nova Tarefa</button>
+    {# --- Split View: lista + painel lateral (estilo Microsoft To Do) --- #}
+    <div class="task-split-view flex flex-1 min-h-0 min-w-0 w-full">
+        <div id="task-list-column" class="task-list-column flex-1 min-w-0 flex flex-col transition-all duration-300">
+        {% if open_reservations %}
+        <a href="/reservations" class="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition mb-4">
+            <span class="text-2xl">📅</span>
+            <div>
+                <p class="font-bold text-amber-800">Reserva em aberto</p>
+                <p class="text-xs text-amber-600">{{ open_reservations|length }} reserva(s) pendente(s)</p>
             </div>
-            <div class="p-4 overflow-y-auto flex-1 space-y-2">
-                {% if open_reservations %}
-                <a href="/reservations" class="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition">
-                    <span class="text-2xl">📅</span>
-                    <div>
-                        <p class="font-bold text-amber-800">Reserva em aberto</p>
-                        <p class="text-xs text-amber-600">{{ open_reservations|length }} reserva(s) pendente(s)</p>
-                    </div>
-                    <span class="ml-auto text-amber-600">→</span>
-                </a>
-                {% endif %}
-                {% for task in tasks_pending %}
-                <div class="flex items-start gap-3 p-3 hover:bg-slate-50 rounded-xl border border-transparent hover:border-slate-100 group">
-                    <input type="checkbox" hx-post="/administrativo/task/{{ task.id }}/toggle" hx-trigger="click" hx-swap="none" class="mt-1 w-5 h-5 text-indigo-600 rounded cursor-pointer">
-                    <div class="flex-1 min-w-0">
-                        <p class="font-medium text-slate-800">{{ task.title }}</p>
-                        <div class="flex gap-2 mt-1 flex-wrap">
-                            {% if task.start_date %}<span class="text-[10px] text-slate-400">Início: {{ task.start_date.strftime('%d/%m') }}</span>{% endif %}
-                            {% if task.due_date %}<span class="text-[10px] {{ 'text-red-500 font-bold' if task.due_date < today else 'text-slate-400' }}">Limite: {{ task.due_date.strftime('%d/%m') }}</span>{% endif %}
-                        </div>
-                    </div>
-                    <button hx-delete="/administrativo/task/{{ task.id }}" hx-target="closest div.flex" hx-swap="outerHTML" class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 p-1">✕</button>
+            <span class="ml-auto text-amber-600">→</span>
+        </a>
+        {% endif %}
+
+        <div id="pending-tasks-list" class="space-y-2 overflow-y-auto flex-1 min-h-0">
+            {% for task in tasks_pending %}
+            {% set task_steps = subtasks_by_task_id.get(task.id, []) %}
+            {% include "partials/task_row_pending.html" %}
+            {% endfor %}
+        </div>
+        {% if not tasks_pending and not open_reservations %}
+        <p class="text-sm text-slate-400 py-4 text-center">Nenhuma tarefa pendente. Adicione uma abaixo.</p>
+        {% endif %}
+
+        {# --- Accordion Concluídas (fechado por padrão) --- #}
+        <div class="mt-4 flex-shrink-0 border-t border-slate-200 pt-4">
+            <button type="button" id="accordion-completed-btn" class="flex items-center gap-2 w-full text-left py-2 text-slate-600 hover:text-slate-800 font-medium transition"
+                    aria-expanded="false" aria-controls="completed-accordion-body">
+                <svg id="accordion-chevron" class="w-5 h-5 transition transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                <span>Concluídas <span id="completed-count">({{ tasks_completed|length }})</span></span>
+            </button>
+            <div id="completed-accordion-body" class="overflow-hidden" style="display: none;">
+                <div id="completed-tasks-list" class="space-y-2 pt-2">
+                    {% for task in tasks_completed %}
+                    {% set task_steps = subtasks_by_task_id.get(task.id, []) %}
+                    {% include "partials/task_row_completed.html" %}
+                    {% endfor %}
                 </div>
-                {% endfor %}
-                {% if not tasks_pending and not open_reservations %}
-                <div class="text-center py-12 opacity-40">
-                    <div class="text-4xl mb-2">✨</div>
-                    <p class="text-sm">Tudo em dia!</p>
-                </div>
+                {% if not tasks_completed %}
+                <p class="text-sm text-slate-400 py-3">Nenhuma tarefa concluída ainda</p>
                 {% endif %}
             </div>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-            <div class="px-6 py-4 border-b border-slate-100">
-                <h3 class="font-bold text-slate-700">✓ Tarefas Concluídas</h3>
-            </div>
-            <div class="p-4 overflow-y-auto flex-1 space-y-2">
-                {% for task in tasks_completed %}
-                <div class="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <input type="checkbox" checked hx-post="/administrativo/task/{{ task.id }}/toggle" hx-trigger="click" hx-swap="none" class="mt-1 w-5 h-5 text-green-600 rounded cursor-pointer">
-                    <div class="flex-1">
-                        <p class="font-medium text-slate-500 line-through">{{ task.title }}</p>
-                        <p class="text-[10px] text-slate-400 mt-1">Concluído em {{ task.completed_at.strftime('%d/%m/%Y %H:%M') if task.completed_at else '-' }}</p>
+
+        {# --- Input fixo no rodapé (estilo MS To Do) + ícones Calendário, Lembrete, Repetir --- #}
+        <div class="sticky bottom-0 bg-slate-100 -mx-0 px-0 py-4 mt-4 border-t border-slate-200 flex-shrink-0">
+            <form id="quick-add-task-form" hx-post="/administrativo/task/create" hx-target="#pending-tasks-list" hx-swap="beforeend"
+                  hx-on::after-request="if(event.detail.successful) { this.querySelector('input[name=title]').value = ''; document.querySelectorAll('.quick-add-popover').forEach(function(p){ p.classList.add('hidden'); }); }"
+                  class="flex flex-col gap-2">
+                <div class="flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-indigo-200 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition">
+                    <span class="flex-shrink-0 w-5 h-5 rounded-full border-2 border-slate-300 text-slate-400" aria-hidden="true"></span>
+                    <input type="text" name="title" placeholder="Adicionar tarefa (Ex: Ligar para o eletricista até sexta 18h)" required
+                           class="flex-1 bg-transparent border-0 focus:ring-0 text-slate-800 placeholder-slate-400 py-0.5 min-w-0">
+                    <input type="hidden" name="start_date" value="">
+                    <input type="hidden" name="due_date" value="">
+                    <input type="hidden" name="reminder_at" value="">
+                    <input type="hidden" name="repeat" value="NONE">
+                    <input type="hidden" name="details" value="">
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                        <div class="relative">
+                            <button type="button" class="quick-add-icon p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition" title="Data de entrega" data-popover="popover-due" aria-haspopup="true" aria-expanded="false">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            </button>
+                            <div id="popover-due" class="quick-add-popover hidden absolute right-0 bottom-full mb-1 z-50 w-56 py-2 px-3 bg-white rounded-xl border border-slate-200 shadow-lg text-sm">
+                                <p class="text-xs font-medium text-slate-500 mb-2">Data de entrega</p>
+                                <div class="flex flex-wrap gap-1.5 mb-2">
+                                    <button type="button" class="quick-smart-due px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 text-slate-600 text-xs" data-value="amanha">Amanhã</button>
+                                    <button type="button" class="quick-smart-due px-2 py-1 rounded-lg bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 text-slate-600 text-xs" data-value="proxima semana">Próx. semana</button>
+                                    <button type="button" class="quick-smart-due px-2 py-1 rounded-lg bg-slate-100 hover:text-slate-500 text-xs" data-value="">Limpar</button>
+                                </div>
+                                <input type="date" id="quick-due-date" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <button type="button" class="quick-add-icon p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition" title="Lembrete" data-popover="popover-reminder" aria-haspopup="true" aria-expanded="false">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                            </button>
+                            <div id="popover-reminder" class="quick-add-popover hidden absolute right-0 bottom-full mb-1 z-50 w-56 py-2 px-3 bg-white rounded-xl border border-slate-200 shadow-lg text-sm">
+                                <p class="text-xs font-medium text-slate-500 mb-2">Lembrete (24h)</p>
+                                <div class="flex gap-2">
+                                    <input type="date" id="quick-reminder-date" class="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                                    <input type="text" id="quick-reminder-time" class="w-20 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center font-mono" placeholder="HH:MM" pattern="[0-2][0-9]:[0-5][0-9]" maxlength="5" title="Formato 24h (ex: 17:30)">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <button type="button" class="quick-add-icon p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition" title="Repetir" data-popover="popover-repeat" aria-haspopup="true" aria-expanded="false">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            </button>
+                            <div id="popover-repeat" class="quick-add-popover hidden absolute right-0 bottom-full mb-1 z-50 w-48 py-2 px-3 bg-white rounded-xl border border-slate-200 shadow-lg text-sm">
+                                <p class="text-xs font-medium text-slate-500 mb-2">Repetir</p>
+                                <select id="quick-repeat" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                                    <option value="NONE">Nunca</option>
+                                    <option value="DAILY">Diariamente</option>
+                                    <option value="WEEKLY">Semanalmente</option>
+                                    <option value="MONTHLY">Mensalmente</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                    <button hx-delete="/administrativo/task/{{ task.id }}" hx-target="closest div.flex" hx-swap="outerHTML" class="text-slate-300 hover:text-red-500 p-1">✕</button>
                 </div>
-                {% endfor %}
-                {% if not tasks_completed %}
-                <div class="text-center py-12 opacity-40">
-                    <p class="text-sm text-slate-400">Nenhuma tarefa concluída ainda</p>
-                </div>
-                {% endif %}
+            </form>
+        </div>
+        <script>
+        (function() {
+            var form = document.getElementById('quick-add-task-form');
+            if (!form) return;
+            var dueHidden = form.querySelector('input[name=due_date]');
+            var reminderHidden = form.querySelector('input[name=reminder_at]');
+            var repeatHidden = form.querySelector('input[name=repeat]');
+            function closeAllPopovers() {
+                document.querySelectorAll('.quick-add-popover').forEach(function(p) { p.classList.add('hidden'); });
+                form.querySelectorAll('.quick-add-icon[aria-expanded="true"]').forEach(function(b) { b.setAttribute('aria-expanded', 'false'); });
+            }
+            form.querySelectorAll('.quick-add-icon').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var popoverId = this.getAttribute('data-popover');
+                    var popover = popoverId ? document.getElementById(popoverId) : null;
+                    var isOpen = popover && !popover.classList.contains('hidden');
+                    closeAllPopovers();
+                    if (popover && !isOpen) {
+                        popover.classList.remove('hidden');
+                        this.setAttribute('aria-expanded', 'true');
+                    }
+                });
+            });
+            document.addEventListener('click', function() { closeAllPopovers(); });
+            form.querySelectorAll('.quick-add-popover').forEach(function(p) {
+                p.addEventListener('click', function(e) { e.stopPropagation(); });
+            });
+            form.querySelectorAll('.quick-smart-due').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var v = (this.getAttribute('data-value') || '').trim();
+                    if (dueHidden) dueHidden.value = v;
+                    var qd = document.getElementById('quick-due-date');
+                    if (qd) qd.value = '';
+                });
+            });
+            function setReminderFromInputs() {
+                var d = document.getElementById('quick-reminder-date');
+                var t = document.getElementById('quick-reminder-time');
+                if (reminderHidden && d && t && d.value && t.value) reminderHidden.value = d.value + 'T' + t.value;
+                else if (reminderHidden && d && t && d.value) reminderHidden.value = d.value + 'T09:00';
+                else if (reminderHidden) reminderHidden.value = '';
+            }
+            // Formatar campo de hora automaticamente (HH:MM)
+            var timeInput = document.getElementById('quick-reminder-time');
+            if (timeInput) {
+                timeInput.addEventListener('input', function(e) {
+                    var val = this.value.replace(/[^0-9]/g, '');
+                    if (val.length >= 2) {
+                        var h = val.substring(0, 2);
+                        var m = val.substring(2, 4);
+                        if (parseInt(h) > 23) h = '23';
+                        if (m && parseInt(m) > 59) m = '59';
+                        this.value = h + (m ? ':' + m : '');
+                    } else {
+                        this.value = val;
+                    }
+                });
+                timeInput.addEventListener('blur', function() {
+                    var val = this.value.replace(/[^0-9]/g, '');
+                    if (val.length === 4) {
+                        var h = val.substring(0, 2);
+                        var m = val.substring(2, 4);
+                        if (parseInt(h) > 23) h = '23';
+                        if (parseInt(m) > 59) m = '59';
+                        this.value = h + ':' + m;
+                    } else if (val.length === 3) {
+                        var h = val.substring(0, 1);
+                        var m = val.substring(1, 3);
+                        if (parseInt(m) > 59) m = '59';
+                        this.value = '0' + h + ':' + m;
+                    } else if (val.length === 2) {
+                        var h = val;
+                        if (parseInt(h) > 23) h = '23';
+                        this.value = h + ':00';
+                    } else if (val.length === 1) {
+                        this.value = '0' + val + ':00';
+                    }
+                });
+            }
+            form.addEventListener('submit', function() {
+                var due = document.getElementById('quick-due-date');
+                var rep = document.getElementById('quick-repeat');
+                if (due && due.value && dueHidden) dueHidden.value = due.value;
+                setReminderFromInputs();
+                if (rep && rep.value && repeatHidden) repeatHidden.value = rep.value;
+            });
+            var dueEl = document.getElementById('quick-due-date');
+            if (dueEl) dueEl.addEventListener('change', function() { if (dueHidden) dueHidden.value = this.value || ''; });
+            ['quick-reminder-date', 'quick-reminder-time'].forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.addEventListener('change', setReminderFromInputs);
+            });
+            var repEl = document.getElementById('quick-repeat');
+            if (repEl) repEl.addEventListener('change', function() { if (repeatHidden) repeatHidden.value = this.value || '';             });
+        })();
+        </script>
+        </div>
+        {# --- Painel lateral (inline, sem overlay) --- #}
+        <div id="task-sheet-panel-wrap" class="flex flex-col h-full flex-shrink-0 overflow-hidden transition-all duration-300 border-l border-slate-200 bg-white" style="width: 0;">
+            <div class="flex items-center justify-between p-4 border-b border-slate-200 flex-shrink-0 min-w-[24rem]">
+                <span class="text-sm font-medium text-slate-500">Detalhes da tarefa</span>
+                <button type="button" id="task-sheet-close-btn" class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition" title="Fechar">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
             </div>
+            <div id="task-sheet-content" class="flex-1 overflow-hidden min-h-0 bg-slate-50 min-w-[24rem]"></div>
         </div>
     </div>
     {% elif tab == 'reunioes' %}
-    <div class="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-            <h3 class="font-bold text-slate-700">🤝 Reuniões</h3>
-            <button onclick="document.getElementById('meeting-modal').classList.remove('hidden')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold">+ Nova Reunião</button>
-        </div>
-        <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto">
+    {# --- Reuniões: mesmo layout que Tarefas (Missão 6) --- #}
+    <div class="flex-1 flex flex-col min-h-0">
+        <div id="meetings-list" class="space-y-0 overflow-y-auto flex-1 min-h-0 bg-white rounded-2xl border border-slate-200">
             {% for m in meetings %}
-            <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-xl hover:shadow-md transition">
-                <div class="flex justify-between items-start mb-2">
-                    <span class="bg-white text-indigo-700 text-xs font-bold px-2 py-1 rounded">{{ m.meeting_date.strftime('%d/%m') }}{% if m.meeting_time %} {{ m.meeting_time }}{% endif %}</span>
-                    <button hx-delete="/administrativo/meeting/{{ m.id }}" hx-target="closest div.bg-indigo-50" hx-swap="outerHTML" class="text-indigo-300 hover:text-red-500">✕</button>
-                </div>
-                <h4 class="font-bold text-slate-800">{{ m.title }}</h4>
-                {% if m.company %}<p class="text-xs text-slate-600 mt-1">🏢 {{ m.company }}</p>{% endif %}
-                {% if m.reason %}<p class="text-xs text-slate-500 mt-1">{{ m.reason }}</p>{% endif %}
-            </div>
+            {% include "partials/meeting_row.html" %}
             {% endfor %}
-            {% if not meetings %}
-            <div class="col-span-full text-center py-16 opacity-40">
-                <div class="text-4xl mb-2">☕</div>
-                <p class="text-sm">Nenhuma reunião agendada</p>
-            </div>
-            {% endif %}
+        </div>
+        {% if not meetings %}
+        <p class="text-sm text-slate-400 py-8 text-center">Nenhuma reunião agendada.</p>
+        {% endif %}
+        <div class="sticky bottom-0 py-4 mt-4 border-t border-slate-200 flex-shrink-0">
+            <button type="button" onclick="document.getElementById('meeting-modal').classList.remove('hidden')" class="w-full flex items-center justify-center gap-2 py-3 px-4 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 hover:border-indigo-200 font-medium transition">
+                <span class="text-lg">+</span> Nova Reunião
+            </button>
         </div>
     </div>
     {% else %}
@@ -170,10 +317,581 @@
     {% endif %}
 </div>
 
-<!-- Modal Tarefa -->
+{# --- Accordion script (Concluídas) --- #}
+<script>
+(function() {
+    var btn = document.getElementById('accordion-completed-btn');
+    var body = document.getElementById('completed-accordion-body');
+    var chevron = document.getElementById('accordion-chevron');
+    if (btn && body) {
+        btn.addEventListener('click', function() {
+            var open = body.style.display !== 'none';
+            body.style.display = open ? 'none' : 'block';
+            btn.setAttribute('aria-expanded', !open);
+            if (chevron) chevron.style.transform = open ? '' : 'rotate(-90deg)';
+        });
+    }
+    function updateCompletedCount() {
+        var list = document.getElementById('completed-tasks-list');
+        var el = document.getElementById('completed-count');
+        if (list && el) {
+            var n = list.querySelectorAll('.task-item').length;
+            el.textContent = '(' + n + ')';
+        }
+    }
+    (function initSortablePending() {
+        var list = document.getElementById('pending-tasks-list');
+        if (!list || !window.Sortable) return;
+        Sortable.create(list, {
+            animation: 150,
+            draggable: '.task-item',
+            ghostClass: 'opacity-50',
+            onEnd: function() {
+                var items = list.querySelectorAll('.task-item');
+                var order = [];
+                items.forEach(function(el) { var id = el.getAttribute('data-task-id'); if (id) order.push(parseInt(id, 10)); });
+                if (order.length) {
+                    fetch('/administrativo/tasks/reorder', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                        body: JSON.stringify({ order: order })
+                    });
+                }
+            }
+        });
+    })();
+    window.updateCompletedCount = updateCompletedCount;
+    
+    // --- Formatação automática de campos de hora (24h) ---
+    function setupTimeInput(input) {
+        if (!input) return;
+        input.addEventListener('input', function(e) {
+            var val = this.value.replace(/[^0-9]/g, '');
+            if (val.length >= 2) {
+                var h = val.substring(0, 2);
+                var m = val.substring(2, 4);
+                if (parseInt(h) > 23) h = '23';
+                if (m && parseInt(m) > 59) m = '59';
+                this.value = h + (m ? ':' + m : '');
+            } else {
+                this.value = val;
+            }
+        });
+        input.addEventListener('blur', function() {
+            var val = this.value.replace(/[^0-9]/g, '');
+            if (val.length === 4) {
+                var h = val.substring(0, 2);
+                var m = val.substring(2, 4);
+                if (parseInt(h) > 23) h = '23';
+                if (parseInt(m) > 59) m = '59';
+                this.value = h + ':' + m;
+            } else if (val.length === 3) {
+                var h = val.substring(0, 1);
+                var m = val.substring(1, 3);
+                if (parseInt(m) > 59) m = '59';
+                this.value = '0' + h + ':' + m;
+            } else if (val.length === 2) {
+                var h = val;
+                if (parseInt(h) > 23) h = '23';
+                this.value = h + ':00';
+            } else if (val.length === 1 && val !== '') {
+                this.value = '0' + val + ':00';
+            }
+        });
+    }
+    // Aplicar formatação em inputs de hora existentes
+    document.querySelectorAll('input[name="meeting_time"]').forEach(setupTimeInput);
+    window.setupTimeInput = setupTimeInput;
+
+    // --- Optimistic UI (estilo Microsoft To Do): feedback instantâneo no checkbox ---
+    function escapeHtml(s) {
+        if (!s) return '';
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+    }
+    function escapeAttr(s) {
+        if (!s) return '';
+        return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function formatDisplayDate(isoStr) {
+        if (!isoStr || isoStr.length < 10) return isoStr;
+        var parts = isoStr.substring(0, 10).split('-');
+        if (parts.length !== 3) return isoStr;
+        return parts[2] + '/' + parts[1] + (parts[0] !== new Date().getFullYear().toString() ? '/' + parts[0] : '');
+    }
+    document.body.addEventListener('click', function(e) {
+        var cb = e.target.closest('.task-checkbox');
+        if (!cb || !cb.dataset.taskId) return;
+        var taskItem = cb.closest('.task-item');
+        if (!taskItem) return;
+        var row = taskItem.querySelector('.task-row');
+        if (!row) return;
+        var pendingList = document.getElementById('pending-tasks-list');
+        var completedList = document.getElementById('completed-tasks-list');
+        if (!pendingList || !completedList) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var taskId = cb.dataset.taskId;
+        var isPending = cb.dataset.isPending === 'true';
+        var title = row.dataset.title || '';
+        var dueDate = row.dataset.dueDate || '';
+        var startDate = row.dataset.startDate || '';
+        var details = row.dataset.details || '';
+        var originalHtml = taskItem.outerHTML;
+        var originalParent = taskItem.parentElement;
+        var originalHtml = taskItem.outerHTML;
+        var accordionBody = document.getElementById('completed-accordion-body');
+        var accordionBtn = document.getElementById('accordion-completed-btn');
+        var chevron = document.getElementById('accordion-chevron');
+        var targetList = isPending ? completedList : pendingList;
+        
+        // Remover imediatamente (UI otimista)
+        taskItem.classList.add('task-row-removing');
+        setTimeout(function() {
+            taskItem.remove();
+        }, 80);
+        
+        // Requisição ao servidor
+        fetch('/administrativo/task/' + taskId + '/toggle', { method: 'POST', headers: { 'HX-Request': 'true', 'Content-Type': 'application/x-www-form-urlencoded' }, body: '' })
+            .then(function(r) {
+                if (!r.ok) throw new Error('Toggle failed');
+                return r.text();
+            })
+            .then(function(html) {
+                // Parsear resposta completa do servidor (com subtarefas)
+                var wrap = document.createElement('div');
+                wrap.innerHTML = html.trim();
+                var serverRow = wrap.querySelector('.task-item');
+                if (!serverRow && wrap.children.length > 1) {
+                    serverRow = wrap.children[wrap.children.length - 1];
+                }
+                
+                console.log('[Toggle] Resposta do servidor recebida. Has subtasks:', serverRow ? serverRow.querySelector('.task-subtasks') !== null : false);
+                
+                if (serverRow) {
+                    // Inserir HTML completo (com subtarefas) na lista de destino
+                    targetList.insertAdjacentHTML('beforeend', serverRow.outerHTML);
+                    
+                    // Expandir accordion se necessário (apenas para concluídas)
+                    if (isPending) {
+                        if (accordionBody) accordionBody.style.display = 'block';
+                        if (accordionBtn) accordionBtn.setAttribute('aria-expanded', 'true');
+                        if (chevron) chevron.style.transform = 'rotate(-90deg)';
+                    }
+                    
+                    // Re-processar HTMX para habilitar interatividade
+                    if (window.htmx) htmx.process(targetList);
+                    
+                    // Atualizar contadores
+                    if (window.updateCompletedCount) updateCompletedCount();
+                    
+                    console.log('[Toggle] Tarefa movida com sucesso (incluindo', serverRow.querySelector('.task-subtasks') ? 'COM' : 'SEM', 'subtarefas)');
+                } else {
+                    console.error('[Toggle] Nao foi possivel extrair serverRow do HTML');
+                    throw new Error('Invalid server response');
+                }
+            })
+            .catch(function(err) {
+                // Em caso de erro, reverter (recolocar na lista original)
+                console.error('[Toggle] Erro ao alternar tarefa:', err);
+                if (originalParent) {
+                    originalParent.insertAdjacentHTML('beforeend', originalHtml);
+                    if (window.htmx) htmx.process(originalParent);
+                }
+                if (window.updateCompletedCount) updateCompletedCount();
+            });
+    });
+})();
+</script>
+
+{# --- Overlay (usado apenas em Reuniões/Contas para meeting sheet) --- #}
+{% if tab != 'tarefas' %}
+<div id="task-sheet-overlay" class="fixed inset-0 z-50 hidden" aria-hidden="true">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" id="task-sheet-backdrop"></div>
+    <div id="task-sheet-panel" class="absolute top-0 right-0 w-full max-w-md h-full bg-white shadow-2xl flex flex-col transform transition-transform duration-300 ease-out translate-x-full">
+        <div class="flex items-center justify-between p-4 border-b border-slate-200 bg-white flex-shrink-0">
+            <span class="text-sm font-medium text-slate-500">Detalhes</span>
+            <button type="button" onclick="if(typeof closeTaskSheet==='function') closeTaskSheet();" class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <div id="task-sheet-content-overlay" class="flex-1 overflow-hidden min-h-0 bg-slate-50"></div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+(function() {
+    function openTaskSheet(taskId) {
+        var panelWrap = document.getElementById('task-sheet-panel-wrap');
+        var content = document.getElementById('task-sheet-content');
+        if (panelWrap && content) {
+            content.innerHTML = '<div class="p-8 text-center text-slate-400">Carregando...</div>';
+            panelWrap.style.width = '24rem';
+            fetch('/administrativo/task/' + taskId + '/sheet')
+                .then(function(r) { return r.text(); })
+                .then(function(html) {
+                    content.innerHTML = html;
+                    if (window.htmx) htmx.process(content);
+                    bindSheetBehaviors(taskId);
+                })
+                .catch(function() {
+                    content.innerHTML = '<div class="p-8 text-center text-red-500">Erro ao carregar.</div>';
+                });
+            return;
+        }
+        var overlay = document.getElementById('task-sheet-overlay');
+        var panel = document.getElementById('task-sheet-panel');
+        var contentOv = document.getElementById('task-sheet-content-overlay');
+        if (overlay && panel && contentOv) {
+            contentOv.innerHTML = '<div class="p-8 text-center text-slate-400">Carregando...</div>';
+            overlay.classList.remove('hidden');
+            panel.classList.remove('translate-x-full');
+            fetch('/administrativo/task/' + taskId + '/sheet')
+                .then(function(r) { return r.text(); })
+                .then(function(html) {
+                    contentOv.innerHTML = html;
+                    if (window.htmx) htmx.process(contentOv);
+                    bindSheetBehaviors(taskId);
+                })
+                .catch(function() { contentOv.innerHTML = '<div class="p-8 text-center text-red-500">Erro ao carregar.</div>'; });
+        }
+    }
+    function closeTaskSheet() {
+        var panelWrap = document.getElementById('task-sheet-panel-wrap');
+        if (panelWrap) {
+            panelWrap.style.width = '0';
+            return;
+        }
+        var overlay = document.getElementById('task-sheet-overlay');
+        var panel = document.getElementById('task-sheet-panel');
+        if (overlay) overlay.classList.add('hidden');
+        if (panel) panel.classList.add('translate-x-full');
+    }
+    function bindSheetBehaviors(taskId) {
+        var inner = document.querySelector('.task-sheet-inner');
+        if (!inner) return;
+        var closeBtn = document.getElementById('task-sheet-close-btn');
+        if (closeBtn) closeBtn.onclick = closeTaskSheet;
+        var backdrop = document.getElementById('task-sheet-backdrop');
+        if (backdrop) backdrop.onclick = closeTaskSheet;
+        var sheetCb = inner.querySelector('.sheet-task-checkbox');
+        if (sheetCb) {
+            sheetCb.addEventListener('click', function(e) {
+                e.preventDefault();
+                closeTaskSheet();
+                var listCb = document.querySelector('#task-pending-' + taskId + ' .task-checkbox') || document.querySelector('#task-completed-' + taskId + ' .task-checkbox');
+                if (listCb) listCb.click();
+            });
+        }
+        var addStepBtn = inner.querySelector('.sheet-add-step');
+        var addStepForm = document.getElementById('sheet-add-step-form-' + taskId);
+        if (addStepBtn && addStepForm) {
+            addStepBtn.onclick = function() { addStepForm.classList.toggle('hidden'); if (!addStepForm.classList.contains('hidden')) addStepForm.querySelector('input').focus(); };
+        }
+        var titleInput = inner.querySelector('.sheet-task-title');
+        if (titleInput) {
+            titleInput.addEventListener('blur', function() {
+                var formData = new FormData();
+                formData.set('title', this.value.trim());
+                fetch('/administrativo/task/' + taskId, { method: 'PATCH', body: formData }).then(function() {
+                    var rowTitle = document.querySelector('#task-pending-' + taskId + ' .task-title, #task-completed-' + taskId + ' .task-title');
+                    if (rowTitle) rowTitle.textContent = titleInput.value.trim();
+                });
+            });
+        }
+        var repeatEl = inner.querySelector('.sheet-repeat');
+        if (repeatEl) repeatEl.addEventListener('change', function() {
+            var formData = new FormData();
+            formData.set('repeat', this.value || '');
+            fetch('/administrativo/task/' + taskId, { method: 'PATCH', body: formData });
+        });
+        if (window.bindSmartDatePickers) window.bindSmartDatePickers(inner, taskId);
+        var notesEl = inner.querySelector('.sheet-notes');
+        if (notesEl) {
+            notesEl.addEventListener('blur', function() {
+                var formData = new FormData();
+                formData.set('notes', this.value);
+                fetch('/administrativo/task/' + taskId, { method: 'PATCH', body: formData });
+            });
+        }
+        var myDayBtn = inner.querySelector('.sheet-my-day');
+        if (myDayBtn) {
+            myDayBtn.onclick = function() {
+                fetch('/administrativo/task/' + taskId + '/my-day', { method: 'POST' })
+                    .then(function(r) { return r.text(); })
+                    .then(function(val) {
+                        var on = val === '1';
+                        myDayBtn.setAttribute('data-in-agenda', on ? '1' : '0');
+                        myDayBtn.querySelector('span').textContent = on ? 'Remover da Agenda' : 'Adicionar à Agenda';
+                        var icon = myDayBtn.querySelector('svg');
+                        if (icon) icon.className = 'w-5 h-5 ' + (on ? 'text-amber-500' : 'text-slate-400');
+                    });
+            };
+        }
+        var addFileBtn = inner.querySelector('.sheet-add-file');
+        if (addFileBtn) {
+            addFileBtn.onclick = function(e) {
+                e.preventDefault();
+                fetch('/administrativo/task/' + taskId + '/ensure-folder', { method: 'POST' })
+                    .then(function(r) { return r.text(); })
+                    .then(function(path) { if (path) alert('Pasta da tarefa criada: ' + path); });
+            };
+        }
+    }
+    document.body.addEventListener('click', function(e) {
+        var item = e.target.closest('.task-item');
+        if (item && !e.target.closest('.task-checkbox') && !e.target.closest('.task-delete') && !e.target.closest('.sheet-step') && !e.target.closest('.task-subtasks')) {
+            var taskId = item.getAttribute('data-task-id');
+            if (taskId) openTaskSheet(taskId);
+            return;
+        }
+        var mWrap = e.target.closest('.meeting-title-wrap');
+        if (mWrap && !e.target.closest('button')) {
+            var meetingId = mWrap.getAttribute('data-meeting-id');
+            if (meetingId) openMeetingSheet(meetingId);
+        }
+    });
+    function openMeetingSheet(meetingId) {
+        var overlay = document.getElementById('task-sheet-overlay');
+        var panel = document.getElementById('task-sheet-panel');
+        var content = document.getElementById('task-sheet-content-overlay');
+        if (!overlay || !panel || !content) return;
+        content.innerHTML = '<div class="p-8 text-center text-slate-400">Carregando...</div>';
+        overlay.classList.remove('hidden');
+        panel.classList.remove('translate-x-full');
+        fetch('/administrativo/meeting/' + meetingId + '/sheet')
+            .then(function(r) { return r.text(); })
+            .then(function(html) {
+                content.innerHTML = html;
+                if (window.htmx) htmx.process(content);
+                bindMeetingSheetBehaviors(meetingId);
+            })
+            .catch(function() { content.innerHTML = '<div class="p-8 text-center text-red-500">Erro ao carregar.</div>'; });
+    }
+    function bindMeetingSheetBehaviors(meetingId) {
+        var inner = document.querySelector('.meeting-sheet-inner');
+        if (!inner) return;
+        var backdrop = document.getElementById('task-sheet-backdrop');
+        if (backdrop) backdrop.onclick = closeTaskSheet;
+        var titleEl = inner.querySelector('.meeting-sheet-title');
+        if (titleEl) titleEl.addEventListener('blur', function() {
+            var fd = new FormData();
+            fd.set('title', this.value.trim());
+            fetch('/administrativo/meeting/' + meetingId, { method: 'PATCH', body: fd }).then(function() {
+                var rowTitle = document.querySelector('.meeting-item[data-meeting-id="' + meetingId + '"] .font-medium');
+                if (rowTitle) rowTitle.textContent = titleEl.value.trim();
+            });
+        });
+        // Aplicar formatação 24h no campo de hora
+        var timeInput = inner.querySelector('[name="meeting_time"]');
+        if (timeInput && window.setupTimeInput) setupTimeInput(timeInput);
+        ['meeting_date', 'meeting_time', 'company', 'reason'].forEach(function(name) {
+            var el = inner.querySelector('[name="' + name + '"]');
+            if (el) el.addEventListener('change', function() {
+                var fd = new FormData(inner);
+                fd.set(name, this.value || '');
+                fetch('/administrativo/meeting/' + meetingId, { method: 'PATCH', body: fd });
+            });
+        });
+        var partEl = inner.querySelector('.meeting-sheet-participants');
+        var notesEl = inner.querySelector('.meeting-sheet-notes');
+        if (partEl) partEl.addEventListener('blur', function() {
+            var fd = new FormData();
+            fd.set('participants', this.value);
+            fetch('/administrativo/meeting/' + meetingId, { method: 'PATCH', body: fd });
+        });
+        if (notesEl) notesEl.addEventListener('blur', function() {
+            var fd = new FormData();
+            fd.set('notes', this.value);
+            fetch('/administrativo/meeting/' + meetingId, { method: 'PATCH', body: fd });
+        });
+    }
+    window.openTaskSheet = openTaskSheet;
+    window.openMeetingSheet = openMeetingSheet;
+    window.closeTaskSheet = closeTaskSheet;
+
+    // --- Smart Date Pickers (opções rápidas + calendário) ---
+    function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+    function setTime(d, h, m) { var x = new Date(d); x.setHours(h, m || 0, 0, 0); return x; }
+    function nextMonday(d) { var x = new Date(d); var day = x.getDay(); var add = day === 0 ? 1 : (8 - day); x.setDate(x.getDate() + add); return x; }
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function toDatetimeLocal(d) { return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+    function toDateLocal(d) { return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); }
+    var WEEKDAY = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    function bindSmartDatePickers(inner, taskId) {
+        var reminderTrigger = inner.querySelector('.sheet-reminder-trigger');
+        var dueTrigger = inner.querySelector('.sheet-due-trigger');
+        var reminderInput = inner.querySelector('.sheet-reminder-input');
+        var dueInput = inner.querySelector('.sheet-due-date');
+        var reminderValue = inner.querySelector('.sheet-reminder-value');
+        var dueValue = inner.querySelector('.sheet-due-value');
+        function closePopover() { var p = document.getElementById('smart-date-popover'); if (p) p.remove(); }
+        function patchAndClose(name, value, displayText) {
+            var formData = new FormData();
+            formData.set(name, value || '');
+            fetch('/administrativo/task/' + taskId, { method: 'PATCH', body: formData });
+            if (name === 'reminder_at' && reminderValue) reminderValue.textContent = displayText || 'Não definido';
+            if (name === 'due_date' && dueValue) dueValue.textContent = displayText || 'Não definido';
+            closePopover();
+        }
+        function openPopover(trigger, isReminder) {
+            closePopover();
+            var now = new Date();
+            var today20 = setTime(now, 20, 0);
+            var opts = [];
+            if (isReminder) {
+                if (now < today20) {
+                    opts.push({ label: '🕒 Mais tarde hoje (20:00)', value: toDatetimeLocal(today20), display: 'Hoje 20:00' });
+                } else {
+                    var amanha9 = setTime(addDays(now, 1), 9, 0);
+                    opts.push({ label: '🕒 Amanhã 9:00', value: toDatetimeLocal(amanha9), display: 'Amanhã 09:00' });
+                }
+                opts.push({ label: '☀️ Amanhã (09:00)', value: toDatetimeLocal(setTime(addDays(now, 1), 9, 0)), display: 'Amanhã 09:00' });
+                var seg = nextMonday(now);
+                opts.push({ label: '📅 Próxima semana (' + WEEKDAY[seg.getDay()] + ', 09:00)', value: toDatetimeLocal(setTime(seg, 9, 0)), display: WEEKDAY[seg.getDay()] + ' ' + seg.getDate() + '/' + (seg.getMonth()+1) + ' 09:00' });
+                opts.push({ label: '⌨️ Escolher data e hora...', custom: true });
+            } else {
+                opts.push({ label: '☀️ Amanhã', value: toDateLocal(addDays(now, 1)), display: 'Amanhã' });
+                var seg = nextMonday(now);
+                opts.push({ label: '📅 Próxima semana (' + WEEKDAY[seg.getDay()] + ')', value: toDateLocal(seg), display: WEEKDAY[seg.getDay()] + ' ' + seg.getDate() + '/' + (seg.getMonth()+1) });
+                opts.push({ label: '⌨️ Escolher data...', custom: true });
+            }
+            var pop = document.createElement('div');
+            pop.id = 'smart-date-popover';
+            pop.className = 'fixed z-[70] bg-white rounded-xl shadow-xl border border-slate-200 py-2 min-w-[240px]';
+            var rect = trigger.getBoundingClientRect();
+            pop.style.left = rect.left + 'px';
+            pop.style.top = (rect.bottom + 6) + 'px';
+            opts.forEach(function(o) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition';
+                btn.textContent = o.label;
+                if (o.custom) {
+                    btn.classList.add('font-medium', 'text-indigo-600');
+                    btn.onclick = function() {
+                        pop.remove();
+                        showCalendarPicker(trigger, isReminder, function(val, display) {
+                            if (isReminder) { if (reminderInput) reminderInput.value = val; patchAndClose('reminder_at', val, display); }
+                            else { if (dueInput) dueInput.value = val; patchAndClose('due_date', val, display); }
+                        });
+                    };
+                } else {
+                    btn.onclick = function() {
+                        if (isReminder) { if (reminderInput) reminderInput.value = o.value; patchAndClose('reminder_at', o.value, o.display); }
+                        else { if (dueInput) dueInput.value = o.value; patchAndClose('due_date', o.value, o.display); }
+                    };
+                }
+                pop.appendChild(btn);
+            });
+            document.body.appendChild(pop);
+            setTimeout(function() { document.addEventListener('click', function onOut(e) { if (!pop.contains(e.target) && e.target !== trigger) { closePopover(); document.removeEventListener('click', onOut); } }); }, 0);
+        }
+        function showCalendarPicker(anchor, isReminder, onPick) {
+            var now = new Date();
+            var month = now.getMonth(), year = now.getFullYear();
+            var pop = document.createElement('div');
+            pop.id = 'smart-date-popover';
+            pop.className = 'fixed z-[70] bg-white rounded-xl shadow-xl border border-slate-200 p-4';
+            var rect = anchor.getBoundingClientRect();
+            pop.style.left = Math.max(10, rect.left) + 'px';
+            pop.style.top = (rect.bottom + 6) + 'px';
+            function render() {
+                var first = new Date(year, month, 1);
+                var last = new Date(year, month + 1, 0);
+                var start = first.getDay();
+                var days = last.getDate();
+                var html = '<div class="flex justify-between items-center mb-3"><button type="button" class="prev-month p-1 rounded hover:bg-slate-100">‹</button><span class="text-sm font-bold text-slate-800">' + ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][month] + ' ' + year + '</span><button type="button" class="next-month p-1 rounded hover:bg-slate-100">›</button></div>';
+                html += '<div class="grid grid-cols-7 gap-0.5 text-center text-xs text-slate-500 mb-2">';
+                for (var i = 0; i < 7; i++) html += '<span>' + WEEKDAY[i] + '</span>';
+                html += '</div><div class="grid grid-cols-7 gap-0.5" id="cal-days"></div>';
+                if (isReminder) html += '<div class="mt-3"><label class="block text-xs text-slate-500 mb-1">Horário (24h)</label><input type="text" class="cal-time w-full border border-slate-200 rounded px-2 py-1.5 text-sm text-center font-mono" value="09:00" placeholder="HH:MM" maxlength="5"></div>';
+                html += '<div class="mt-3 flex gap-2"><button type="button" class="cal-cancel px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100 rounded">Cancelar</button><button type="button" class="cal-ok px-3 py-1.5 text-sm bg-indigo-600 text-white rounded font-medium">OK</button></div>';
+                pop.innerHTML = html;
+                // Aplicar formatação 24h no campo de hora do calendário
+                var calTimeInput = pop.querySelector('.cal-time');
+                if (calTimeInput && window.setupTimeInput) setupTimeInput(calTimeInput);
+                var daysEl = pop.querySelector('#cal-days');
+                for (var i = 0; i < start; i++) daysEl.appendChild(document.createElement('div'));
+                var selected = null;
+                for (var d = 1; d <= days; d++) {
+                    var cell = document.createElement('button');
+                    cell.type = 'button';
+                    cell.className = 'w-8 h-8 rounded text-sm hover:bg-slate-100 ' + (new Date(year, month, d).toDateString() === now.toDateString() ? 'bg-indigo-100 text-indigo-700 font-bold' : 'text-slate-700');
+                    cell.textContent = d;
+                    cell.dataset.date = toDateLocal(new Date(year, month, d));
+                    cell.onclick = function() {
+                        pop.querySelectorAll('#cal-days button.selected').forEach(function(b) { b.classList.remove('selected', 'bg-indigo-600', 'text-white'); });
+                        this.classList.add('selected', 'bg-indigo-600', 'text-white');
+                        selected = this.dataset.date;
+                    };
+                    daysEl.appendChild(cell);
+                }
+                pop.querySelector('.prev-month').onclick = function() { month--; if (month < 0) { month = 11; year--; } render(); };
+                pop.querySelector('.next-month').onclick = function() { month++; if (month > 11) { month = 0; year++; } render(); };
+                pop.querySelector('.cal-cancel').onclick = function() { pop.remove(); };
+                pop.querySelector('.cal-ok').onclick = function() {
+                    if (!selected) return;
+                    if (isReminder) {
+                        var timeEl = pop.querySelector('.cal-time');
+                        var t = (timeEl && timeEl.value) ? timeEl.value : '09:00';
+                        var val = selected + 'T' + t;
+                        var disp = selected.split('-').reverse().join('/') + ' ' + t;
+                        onPick(val, disp);
+                    } else {
+                        var disp = selected.split('-').reverse().join('/');
+                        onPick(selected, disp);
+                    }
+                };
+            }
+            render();
+            document.body.appendChild(pop);
+        }
+        if (reminderTrigger) reminderTrigger.onclick = function(e) { e.stopPropagation(); openPopover(reminderTrigger, true); };
+        if (dueTrigger) dueTrigger.onclick = function(e) { e.stopPropagation(); openPopover(dueTrigger, false); };
+    }
+
+    // Lembretes: notificação de sistema + som a cada minuto
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+    var notifiedIds = JSON.parse(localStorage.getItem('guardian_reminder_notified') || '[]');
+    function playReminderBeep() {
+        try {
+            var ctx = new (window.AudioContext || window.webkitAudioContext)();
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 800;
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.3);
+        } catch (e) {}
+    }
+    setInterval(function() {
+        if (document.visibilityState !== 'visible') return;
+        fetch('/administrativo/reminders').then(function(r) { return r.json(); }).then(function(list) {
+            list.forEach(function(t) {
+                if (notifiedIds.indexOf(t.id) !== -1) return;
+                notifiedIds.push(t.id);
+                if (notifiedIds.length > 50) notifiedIds = notifiedIds.slice(-20);
+                localStorage.setItem('guardian_reminder_notified', JSON.stringify(notifiedIds));
+                playReminderBeep();
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification('Lembrete: ' + (t.title || 'Tarefa'), { body: 'Hora da tarefa no Guardian.', icon: '/favicon.ico' });
+                }
+            });
+        }).catch(function() {});
+    }, 60000);
+})();
+</script>
+
+<!-- Modal Nova Tarefa (completa, com datas - opcional) -->
 <div id="task-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
-        <h3 class="font-bold text-lg text-slate-800 mb-4">Nova Tarefa</h3>
+        <h3 class="font-bold text-lg text-slate-800 mb-4">Nova Tarefa (com datas)</h3>
         <form action="/administrativo/task/create" method="POST" class="space-y-4">
             <div>
                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Título / O que fazer</label>
@@ -185,7 +903,7 @@
                     <input type="date" name="start_date" class="w-full border p-2 rounded">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Data limite</label>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Data de entrega</label>
                     <input type="date" name="due_date" class="w-full border p-2 rounded">
                 </div>
             </div>
@@ -216,8 +934,8 @@
                     <input type="date" name="meeting_date" class="w-full border p-2 rounded" required>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Horário</label>
-                    <input type="time" name="meeting_time" class="w-full border p-2 rounded">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Horário (24h)</label>
+                    <input type="text" name="meeting_time" class="w-full border p-2 rounded text-center font-mono" placeholder="HH:MM" maxlength="5">
                 </div>
             </div>
             <div>
@@ -249,6 +967,24 @@
         </form>
     </div>
 </div>
+
+<script>
+// Aplicar formatação 24h no campo de hora do modal de nova reunião
+(function() {
+    var modal = document.getElementById('meeting-modal');
+    if (modal) {
+        var observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.attributeName === 'class' && !modal.classList.contains('hidden')) {
+                    var timeInput = modal.querySelector('[name="meeting_time"]');
+                    if (timeInput && window.setupTimeInput) setupTimeInput(timeInput);
+                }
+            });
+        });
+        observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+    }
+})();
+</script>
 
 <!-- Modal Conta a Pagar -->
 <div id="payable-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">

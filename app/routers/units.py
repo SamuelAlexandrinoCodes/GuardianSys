@@ -111,9 +111,9 @@ def add_resident_form(request: Request, unit_id: int):
     return templates.TemplateResponse("partials/resident_modal.html", {"request": request, "unit_id": unit_id, "resident": None})
 
 @router.post("/residents/create", response_class=RedirectResponse)
-def create_resident(background_tasks: BackgroundTasks, unit_id: int = Form(...), full_name: str = Form(...), profile_type: str = Form(...), birth_date: str = Form(...), phone: str = Form(""), email: str = Form(""), observations: str = Form(None), is_pcd: bool = Form(False)):
+def create_resident(background_tasks: BackgroundTasks, unit_id: int = Form(...), full_name: str = Form(...), profile_type: str = Form(...), birth_date: str = Form(None), phone: str = Form(""), email: str = Form(""), observations: str = Form(None), is_pcd: bool = Form(False)):
     with Session(engine) as session:
-        bdate = datetime.strptime(birth_date, "%Y-%m-%d").date()
+        bdate = datetime.strptime(birth_date, "%Y-%m-%d").date() if birth_date else None
         new_resident = Resident(unit_id=unit_id, full_name=full_name, profile_type=profile_type, birth_date=bdate, phone=phone, email=email, observations=observations, is_pcd=is_pcd, is_active=True)
         session.add(new_resident)
         session.commit()
@@ -167,19 +167,24 @@ def update_resident_name(resident_id: int, background_tasks: BackgroundTasks, ne
 def get_edit_date(resident_id: int):
     with Session(engine) as session:
         res = session.get(Resident, resident_id)
-        return f"""<form hx-post="/resident/{resident_id}/update_date" hx-target="closest td" hx-swap="innerHTML" hx-trigger="submit, blur from:find input" class="w-full m-0 p-0"><input type="text" name="new_date" value="{res.birth_date.strftime('%d/%m/%Y')}" class="w-full text-xs border-b-2 border-indigo-500 bg-white px-1 py-0.5 outline-none font-medium text-center tracking-wider text-slate-700" placeholder="DD/MM/AAAA" autofocus onclick="event.stopPropagation()"></form>"""
+        val = res.birth_date.strftime('%d/%m/%Y') if res.birth_date else ""
+        return f"""<form hx-post="/resident/{resident_id}/update_date" hx-target="closest td" hx-swap="innerHTML" hx-trigger="submit, blur from:find input" class="w-full m-0 p-0"><input type="text" name="new_date" value="{val}" class="w-full text-xs border-b-2 border-indigo-500 bg-white px-1 py-0.5 outline-none font-medium text-center tracking-wider text-slate-700" placeholder="DD/MM/AAAA" autofocus onclick="event.stopPropagation()"></form>"""
 
 @router.post("/resident/{resident_id}/update_date", response_class=HTMLResponse)
-def update_date(resident_id: int, background_tasks: BackgroundTasks, new_date: str = Form(...)):
+def update_date(resident_id: int, background_tasks: BackgroundTasks, new_date: str = Form(None)):
     with Session(engine) as session:
         res = session.get(Resident, resident_id)
         try:
-            res.birth_date = datetime.strptime(new_date.strip(), "%d/%m/%Y").date()
+            if new_date and new_date.strip():
+                res.birth_date = datetime.strptime(new_date.strip(), "%d/%m/%Y").date()
+            else:
+                res.birth_date = None
             session.add(res)
             session.commit()
             background_tasks.add_task(run_backup_job)
         except: pass
-        return f"""<div hx-get="/resident/{resident_id}/edit_date" hx-trigger="click" hx-swap="innerHTML" class="cursor-pointer hover:bg-slate-100 hover:text-indigo-600 p-1 rounded transition text-center w-full h-full flex items-center justify-center">{res.birth_date.strftime('%d/%m/%Y')}</div>"""
+        disp = res.birth_date.strftime('%d/%m/%Y') if res.birth_date else "—"
+        return f"""<div hx-get="/resident/{resident_id}/edit_date" hx-trigger="click" hx-swap="innerHTML" class="cursor-pointer hover:bg-slate-100 hover:text-indigo-600 p-1 rounded transition text-center w-full h-full flex items-center justify-center">{disp}</div>"""
 
 @router.get("/resident/{resident_id}/edit_field/{field}", response_class=HTMLResponse)
 def get_edit_field(resident_id: int, field: str):
