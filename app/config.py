@@ -1,29 +1,23 @@
 import os
 import sys
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select, text
 from app.models import SystemConfig
 from app.database import engine
 
 # --- LÓGICA DO TERMINAL (INTELIGENTE) ---
 if getattr(sys, 'frozen', False):
-    # Se for .exe, silencia tudo para não travar
     sys.stdout = open(os.devnull, 'w')
     sys.stderr = open(os.devnull, 'w')
     BASE_DIR = os.path.dirname(sys.executable)
 else:
-    # Se for desenvolvimento, mantém terminal ativo
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # --- CAMINHOS ---
-TEMPLATES_DIR = os.path.join(BASE_DIR, "app", "templates")
 STATIC_DIR = os.path.join(BASE_DIR, "app", "static")
 STORAGE_DIR = os.path.join(BASE_DIR, "storage")
 PHOTOS_DIR = os.path.join(STORAGE_DIR, "photos")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
-# Garante pastas
 for folder in [STORAGE_DIR, PHOTOS_DIR, DATA_DIR]:
     if not os.path.exists(folder):
         os.makedirs(folder)
@@ -35,13 +29,10 @@ def get_unit_folder_name(unit) -> str:
     return f"apto_{block}_{number}"
 
 def get_reservation_folder_name(reservation_date, area_name: str) -> str:
-    """Pasta da reserva: {data}_{area} (ex: 2025-02-15_churrasqueira) - identificador único"""
+    """Pasta da reserva: {data}_{area} (ex: 2025-02-15_churrasqueira)"""
     date_str = reservation_date.isoformat() if hasattr(reservation_date, 'isoformat') else str(reservation_date)
     area = str(area_name).lower().replace(" ", "_")
     return f"{date_str}_{area}"
-
-# --- OBJETOS COMPARTILHADOS ---
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 # --- FUNÇÕES UTILITÁRIAS ---
 

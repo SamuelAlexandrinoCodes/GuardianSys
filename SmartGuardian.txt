@@ -1,0 +1,26 @@
+📄 DOC 1: GuardianSys - Smart Tasks (NLP Local)
+Projeto: GuardianSys (Sistema de Gestão Interna/Condominial)
+Foco: Fluidez Extrema e Interface Invisível para agendamento de tarefas.
+Custo de Escala: $0
+
+1. O Problema
+A criação de tarefas atualmente exige digitação do título e cliques sequenciais em calendários e seletores de hora. Isso gera atrito cognitivo.
+
+2. A Solução: Processamento Baseado em Regras (Client-Side)
+Para o Guardian, não precisamos de Redes Neurais complexas. Precisamos de velocidade absoluta (0 milissegundos de latência). O sistema deve extrair a temporalidade enquanto o usuário digita.
+
+3. A Tecnologia: chrono-node
+O que é: Um analisador de linguagem natural para datas, feito em JavaScript.
+
+Como opera: Ele roda nativamente dentro do Frontend (no nosso novo React).
+
+Por que é a escolha ideal:
+
+Custo Zero: A computação é feita pelo processador do computador ou celular do próprio usuário.
+
+Velocidade: Como não há requisição ao backend (sem roundtrip de rede), a extração é instantânea.
+
+Exemplo: O usuário digita "Verificar bomba d'água sexta-feira às 14h". O chrono intercepta, define a variável de agendamento para a próxima sexta, e limpa o texto deixando apenas "Verificar bomba d'água".
+
+4. Conclusão para o Guardian
+A implementação é trivial no React. Resolve 99% dos problemas de atrito na criação de tarefas sem adicionar nenhum peso ao nosso servidor FastAPI.

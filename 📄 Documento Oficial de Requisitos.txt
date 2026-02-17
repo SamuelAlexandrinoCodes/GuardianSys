@@ -1,94 +1,55 @@
-📄 Documento Oficial de Requisitos UI/UX: Módulo de Tarefas (V2.0)
-1. Painel Principal: Tarefas Pendentes
-Ordenação e Priorização (Novo): A lista de tarefas deve suportar reordenação via Drag and Drop (arrastar e soltar) para que o usuário defina visualmente as prioridades do dia.
+📄 Documento Oficial de Requisitos UI/UX: Módulo de Tarefas (V2.7)
+0. Layout Global, Cabeçalho e Comportamento de Rolagem (Scroll)
+Header Limpo: O cabeçalho global padrão do sistema é ocultado. Topo composto exclusivamente pelos 3 botões de abas.
 
-Identificação Visual (Novo): As tarefas devem suportar a atribuição de cores (tags coloridas ou bordas laterais) para categorização visual rápida.
+Arquitetura de Tela Fixa: A tela principal ocupa 100% da altura da janela (sem rolagem global).
 
-Comportamento do Card (Row): Clicar no corpo do card da tarefa (fora dos botões de ação) deve abrir o Painel de Detalhes Lateral (MLT).
+Estrutura de Layout: Coluna única (single-column) centralizada.
 
-Edição Inline (MET): Clicar especificamente sobre o título da tarefa deve transformá-lo em um input de texto para edição rápida.
+Comportamento do Eixo Y: Abas e Input de Criação fixos no topo. Acordeão de Concluídas fixo na base. Apenas a lista de Tarefas Pendentes possui rolagem interna.
 
-Salvamento: A nova alteração de texto deve ser salva automaticamente sob duas condições: ao pressionar a tecla Enter ou ao clicar fora da caixa de texto (evento onblur).
+1. Identidade e Construção da Barra de Tarefas (A Regra do Alinhamento Absoluto)
+Centralização Absoluta: O Texto da Tarefa e o Checkbox (O Átomo) devem estar perfeitamente centralizados no eixo vertical (Y) da área principal (cabeçalho) da barra.
 
-Conclusão: O botão de marcação deve ser estritamente circular.
+A Matemática do Átomo (Altura-x Estrita): O botão de conclusão circular deve ter o tamanho exato da altura de uma letra minúscula (como a letra "a") da fonte do título principal.
 
-Ao clicar no círculo, a Tarefa e todas as suas Subtarefas devem ser marcadas como "Concluídas" simultaneamente, movendo-as imediatamente para a aba de Concluídas.
+A Âncora Inferior (Footer Actions): * Os botões de ação secundária (+ Adicionar subtarefa, Expandir/Ocultar) não ficam mais colados imediatamente abaixo do texto da tarefa pai se existirem subtarefas.
 
-Ações Rápidas Inline:
+Eles atuam como a linha de base (rodapé) estrutural do conteúdo do card.
 
-Exibir texto interativo em azul claro: + Adicionar subtarefa logo abaixo do título.
+Qualquer subtarefa criada será inserida entre o texto principal e estes botões. O botão + Adicionar subtarefa será empurrado para baixo a cada nova subtarefa, mantendo-se sempre como o último elemento interativo da lista.
 
-Exibir botão (ícone de chevron/seta) adjacente para expandir/recolher a lista de subtarefas.
-
-Exclusão: Botão "X" (ou ícone de lixeira) visível na extremidade direita do card.
-
-Prevenção de Erros: O clique neste botão deve acionar o Modal de Confirmação padrão do sistema antes de efetivar a deleção.
+Mantêm a regra do Zero Inchamento (Micro-UI, fonte microscópica, sem margens excessivas).
 
 2. Gestão de Subtarefas (Quando expandidas)
-Design: Devem possuir um recuo (padding-left) para indicar hierarquia em relação à tarefa principal.
+Design Ultracompacto (Economia Espacial): As subtarefas devem adotar um layout de altíssima densidade. O preenchimento (padding) vertical entre elas deve ser reduzido ao mínimo suportável para clique, criando uma lista sólida e contínua que não desperdiça espaço da tela.
 
-Conclusão: Botão de marcação circular (idêntico ao da tarefa principal).
+Design: Recuo para indicar hierarquia. Checkbox circular proporcional (ainda menor que o da tarefa pai).
 
-Animação/Ordenação: Ao serem marcadas como concluídas, o texto recebe tachado (strikethrough) e a subtarefa deve ser deslocada para o final da lista de subtarefas daquele card específico.
+Animação/Ordenação: Ao concluir, o texto recebe tachado e vai para o final de sua lista específica.
 
-Exclusão: Botão "X" de exclusão lateral. Também deve acionar o Modal de Confirmação padrão do sistema.
+Exclusão: Botão "X" de exclusão lateral invisível, revelado apenas no hover.
 
 3. Painel de Detalhes Lateral (MLT - Side Sheet)
-Comportamento Global: O modal desliza da direita para a esquerda e fecha automaticamente ao receber um clique fora de sua área (backdrop) ou no botão "X" de fechamento.
+Comportamento: Desliza da direita para a esquerda. Fecha ao clicar fora ou no "X".
 
-Atributos Internos:
-
-Cores (Novo): Seletor simples de cores para aplicar à tarefa. (deve aparecer no modal como um pequeno circulo no canto superior direito da tarefa)
-
-Subtarefas: Input dinâmico que adiciona subtarefas em tempo real à lista.
-
-Data de Início: Preenchimento padrão (default) com a data atual (Hoje).
-
-Data de Entrega: Input de calendário acompanhado de Quick Buttons (Botões Rápidos): [Amanhã] e [Próxima Segunda-feira].
-
-Anotações: Área de texto estendida (Textarea) para "Adicionar nota".
-
-Recorrência: Componente Dropdown para configurar a repetitividade da tarefa.
-
-Lembrete: Componente de agendamento em formato estritamente Brasileiro (DD/MM/AAAA e HH:MM).
+Atributos: Seletor de cores no cabeçalho, input dinâmico de subtarefas, Data de Início, Data de Entrega (com Quick Buttons), Anotações estendidas, Recorrência e Lembrete.
 
 4. Sistema de Lembretes e Alertas (UX)
-Aviso Sonoro: Considerando o ambiente local do sistema, haverá disparo de notificação sonora de alerta alto, configurado para repetir exatas 3 vezes no momento agendado.
+Aviso Sonoro: Alerta sonoro local acionado por hardware (3 beeps agudos).
 
-Aviso Visual: Notificação estilo Toast fixada no canto inferior direito da tela.
-
-Interatividade da Notificação:
-
-A notificação é persistente (não some sozinha) e requer ação obrigatória do usuário.
-
-Botão de ação 1: [Me lembre em 15 minutos] (Snooze).
-
-Botão de ação 2: [Ignorar / Fechar].
+Aviso Visual: Notificação estilo Toast no canto inferior direito persistente (Soneca ou Fechar).
 
 5. Visão: Tarefas Concluídas & Histórico Completo
-Filtro Padrão (Visão Diária): A lista principal fixa na tela deve exibir apenas as tarefas concluídas no dia atual (Hoje).
+A Doca Base: Acordeão de tarefas concluídas hoje fixado permanentemente na base da tela.
 
-Exibição de Dados: Todas as tarefas concluídas devem exibir de forma clara a etiqueta com a Data/Hora exata da conclusão.
+UI Minimalista: Apresenta apenas o número de concluídas, a palavra "Concluídas", o toggle e o botão de Histórico.
 
-Reversão: O botão circular da tarefa permanecerá marcado. Ao ser clicado, ele remove o status de "concluída" e devolve a tarefa para o painel de "Pendentes".
+Reversão: Clicar no checkbox de uma concluída a devolve para a lista de pendentes.
 
-Exclusão: Botão "X" lateral que invoca o Modal de Confirmação padrão do sistema para deleção permanente.
-
-Modo de Histórico Completo (Novo):
-
-Haverá um botão/link para "Acessar Histórico Completo".
-
-Transição de UI: Ao ser ativado, este modo irá recolher/ocultar toda a interface de pendências superior, assumindo o foco principal da tela.
-
-Filtro Específico: Dentro deste modo, haverá um modal/seletor de datas dedicado, permitindo ao usuário pesquisar o histórico de tarefas concluídas com base em dias, meses ou períodos anteriores.
+Modo de Histórico Completo: Oculta a tela de pendentes e mostra um overlay absoluto com pesquisa por data.
 
 6. Criação de Nova Tarefa (Input Rápido Principal)
-Comportamento Base: Campo de texto simples afixado no topo. O pressionar da tecla Enter ou clicar fora do título (onblur) deve criar a tarefa imediatamente no painel de Pendentes.
+Design Fixo no Topo: Campo focado e direto. Enter cria a tarefa.
 
-Controles Anexos (Quick Actions):
-
-Botão 1 (Data de Entrega): Abre popover de calendário com a data de hoje pré-selecionada + Botões Rápidos [Amanhã] e [Próxima Segunda].
-
-Botão 2 (Lembrete): Abre mini-modal idêntico à interface de Lembrete contida no MLT.
-
-Botão 3 (Recorrência): Abre dropdown de repetitividade idêntico ao do MLT.
+Quick Actions: Botões ultradiscretos (Data, Lembrete, Repetir) sob o input.

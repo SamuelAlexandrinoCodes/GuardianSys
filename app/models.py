@@ -95,7 +95,10 @@ class Task(SQLModel, table=True):
     status: str = Field(default="PENDENTE")
     # Campos estilo MS To Do
     reminder_at: Optional[datetime] = None
-    repeat: str = Field(default="NONE")  # NONE, DAILY, WEEKLY, MONTHLY
+    repeat: str = Field(default="NONE")  # NONE, DAILY, WEEKLY, MONTHLY, CUSTOM
+    repeat_interval_days: Optional[int] = None
+    recurrence_spawned_at: Optional[datetime] = None
+    color: Optional[str] = None
     in_agenda: bool = Field(default=True)
     notes: Optional[str] = None
     created_at: Optional[datetime] = Field(default_factory=datetime.now)

@@ -50,6 +50,9 @@ def create_db_and_tables():
             "ALTER TABLE task ADD COLUMN created_at DATETIME",
             "ALTER TABLE task ADD COLUMN files_folder VARCHAR",
             "ALTER TABLE task ADD COLUMN order_index INTEGER DEFAULT 0",
+            "ALTER TABLE task ADD COLUMN repeat_interval_days INTEGER",
+            "ALTER TABLE task ADD COLUMN recurrence_spawned_at DATETIME",
+            "ALTER TABLE task ADD COLUMN color VARCHAR",
         ]
         for col_sql in migs:
             try:
