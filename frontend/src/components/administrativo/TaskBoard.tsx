@@ -1,12 +1,22 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-} from "@hello-pangea/dnd";
-import type { DropResult, DraggableProvidedDragHandleProps } from "@hello-pangea/dnd";
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import * as ColorPopover from "@radix-ui/react-popover";
+import { pt as chronoPt } from "chrono-node";
 import {
   Plus,
   Check,
@@ -18,7 +28,6 @@ import {
   Repeat,
   History,
   Sparkles,
-  GripVertical,
   Palette,
   X,
   Search,
@@ -28,15 +37,15 @@ import { api } from "../../lib/api";
 import { TaskSideSheet } from "./TaskSideSheet";
 
 /* ========================================================================== */
-/* Constants                                                                   */
+/* Constants                                                                  */
 /* ========================================================================== */
 
-const colorMap: Record<string, string> = {
-  "border-l-red-500": "border-l-red-500",
-  "border-l-orange-500": "border-l-orange-500",
-  "border-l-emerald-500": "border-l-emerald-500",
-  "border-l-blue-500": "border-l-blue-500",
-  "border-l-purple-500": "border-l-purple-500",
+const colorHexMap: Record<string, string> = {
+  "border-l-red-500": "#ef4444",
+  "border-l-orange-500": "#f97316",
+  "border-l-emerald-500": "#10b981",
+  "border-l-blue-500": "#3b82f6",
+  "border-l-purple-500": "#a855f7",
 };
 
 const colorOptions = [
@@ -47,13 +56,59 @@ const colorOptions = [
   { value: "border-l-purple-500", bg: "bg-purple-500" },
 ];
 
-function getBorderColor(color: string | null): string {
-  if (!color) return "border-l-transparent";
-  return colorMap[color] || "border-l-transparent";
+/* ========================================================================== */
+/* Smart Reminder Parser (chrono-node + Híbrido)                              */
+/* ========================================================================== */
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+function fmtLocal(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function parseSmartInput(raw: string): {
+  title: string;
+  reminderAt: string | null;
+  dueDate: string | null;
+} {
+  const result = { title: raw, reminderAt: null as string | null, dueDate: null as string | null };
+
+  // 1. Lembrete Explícito (Corta o texto)
+  const reminderRegex = /\s*(?:lembrete|me lembre|lembrar)\s+(.+)$/i;
+  const reminderMatch = raw.match(reminderRegex);
+
+  if (reminderMatch) {
+    result.title = raw.slice(0, reminderMatch.index).trim();
+    const temporalStr = reminderMatch[1]
+      .replace(/\bmin\b/gi, "minutos")
+      .replace(/\bhr?s?\b/gi, "horas");
+
+    // Lógica cravada de alta precisão para "em X minutos/horas"
+    const relativeMatch = temporalStr.match(/^(?:em\s+|daqui a\s+)?(\d+)\s*(minuto|minutos|min|m|hora|horas|h|hr)$/i);
+    if (relativeMatch) {
+      const amount = parseInt(relativeMatch[1], 10);
+      const unit = relativeMatch[2].toLowerCase();
+      const d = new Date();
+      if (unit.startsWith("h")) d.setHours(d.getHours() + amount);
+      else d.setMinutes(d.getMinutes() + amount);
+      result.reminderAt = fmtLocal(d);
+    } else {
+      const parsed = chronoPt.parseDate(temporalStr, new Date(), { forwardDate: true });
+      if (parsed) result.reminderAt = fmtLocal(parsed);
+    }
+  } else {
+    // 2. Data Comum (Não corta o texto, apenas detecta para due_date)
+    const parsedResults = chronoPt.parse(raw, new Date(), { forwardDate: true });
+    if (parsedResults.length > 0) {
+      result.dueDate = fmtLocal(parsedResults[0].start.date());
+    }
+  }
+
+  return result;
 }
 
 /* ========================================================================== */
-/* Quick Action Meta                                                           */
+/* Quick Action Meta                                                          */
 /* ========================================================================== */
 
 interface QuickMeta {
@@ -73,7 +128,7 @@ const emptyMeta: QuickMeta = {
 };
 
 /* ========================================================================== */
-/* Props                                                                       */
+/* Props                                                                      */
 /* ========================================================================== */
 
 interface TaskBoardProps {
@@ -83,7 +138,7 @@ interface TaskBoardProps {
 }
 
 /* ========================================================================== */
-/* TaskBoard                                                                   */
+/* TaskBoard                                                                  */
 /* ========================================================================== */
 
 export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
@@ -95,10 +150,21 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
   const [showCompleted, setShowCompleted] = useState(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+
+  // --- MÁGICA EM TEMPO REAL (O Erro vermelho foi resolvido aqui) ---
+  const smartParsed = quickInput.trim() ? parseSmartInput(quickInput) : { title: "", reminderAt: null, dueDate: null };
+  const hasSmartReminder = !!smartParsed.reminderAt;
+  const hasSmartDate = !!smartParsed.dueDate && !hasSmartReminder;
+
   const inputRef = useRef<HTMLInputElement>(null);
   const popoverAreaRef = useRef<HTMLDivElement>(null);
 
-  // Keep activeTask in sync with refreshed data
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
+    })
+  );
+
   useEffect(() => {
     if (!activeTask) return;
     const id = activeTask.id;
@@ -112,7 +178,6 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
     (t) => t.completed_at && t.completed_at.startsWith(todayStr)
   );
 
-  // Close popover on outside click
   useEffect(() => {
     if (!activePopover) return;
     const handler = (e: MouseEvent) => {
@@ -130,19 +195,32 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
   /* ---- Handlers ---- */
 
   const handleQuickCreate = useCallback(async () => {
-    const title = quickInput.trim();
-    if (!title) return;
-    const payload: Record<string, unknown> = { title };
-    if (quickMeta.dueDate) payload.due_date = quickMeta.dueDate;
+    const raw = quickInput.trim();
+    if (!raw) return;
+
+    const { title, reminderAt, dueDate } = parseSmartInput(raw);
+    const payload: Record<string, unknown> = { title: title || raw };
+
+    // Prioridade 1: Botões Manuais. Prioridade 2: Inteligência do texto.
+    if (quickMeta.dueDate) {
+      payload.due_date = quickMeta.dueDate;
+    } else if (dueDate) {
+      payload.due_date = dueDate.split("T")[0]; // Mantém apenas YYYY-MM-DD
+    }
+
     if (quickMeta.reminderDate && quickMeta.reminderTime) {
       payload.reminder_at = `${quickMeta.reminderDate}T${quickMeta.reminderTime}`;
+    } else if (reminderAt) {
+      payload.reminder_at = reminderAt;
     }
+
     if (quickMeta.repeat !== "NONE") {
       payload.repeat = quickMeta.repeat;
       if (quickMeta.repeat === "CUSTOM" && quickMeta.repeatDays) {
         payload.repeat_interval_days = quickMeta.repeatDays;
       }
     }
+
     setQuickInput("");
     setQuickMeta(emptyMeta);
     setActivePopover(null);
@@ -151,16 +229,16 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
   }, [quickInput, quickMeta, onRefresh]);
 
   const handleDragEnd = useCallback(
-    async (result: DropResult) => {
-      if (
-        !result.destination ||
-        result.source.index === result.destination.index
-      )
-        return;
-      const reordered = Array.from(pending);
-      const [moved] = reordered.splice(result.source.index, 1);
-      reordered.splice(result.destination.index, 0, moved);
-      await api.reorderTasks(reordered.map((t) => t.id));
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      const oldIdx = pending.findIndex((t) => t.id === active.id);
+      const newIdx = pending.findIndex((t) => t.id === over.id);
+      if (oldIdx === -1 || newIdx === -1) return;
+
+      const reordered = arrayMove(pending, oldIdx, newIdx);
+      api.reorderTasks(reordered.map((t) => t.id));
       onRefresh();
     },
     [pending, onRefresh]
@@ -223,7 +301,7 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
     <>
       <div className="flex h-full flex-col">
         {/* ---------------------------------------------------------------- */}
-        {/* Quick-add input                                                   */}
+        {/* Quick-add input                                                  */}
         {/* ---------------------------------------------------------------- */}
         <div className="shrink-0 px-6 pt-6 pb-4">
           <div className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm transition-shadow focus-within:shadow-md dark:border-white/[0.06] dark:bg-zinc-900">
@@ -239,17 +317,34 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
                 value={quickInput}
                 onChange={(e) => setQuickInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleQuickCreate()}
-                placeholder="Nova tarefa..."
+                placeholder="Nova tarefa...  (ex: Comprar pao lembrete em 10 min)"
                 className="flex-1 bg-transparent text-[15px] font-semibold tracking-tight text-slate-900 placeholder-slate-300 outline-none dark:text-zinc-100 dark:placeholder-zinc-600"
               />
             </div>
+
+            {/* Smart Pills (Realtime NLP feedback) */}
+            {(hasSmartReminder || hasSmartDate) && (
+              <div className="flex gap-2 px-4 pb-3">
+                {hasSmartReminder && (
+                  <span className="flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                    <Bell size={10} strokeWidth={2} />
+                    Lembrete: {new Date(smartParsed.reminderAt!).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
+                {hasSmartDate && (
+                  <span className="flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
+                    <CalendarDays size={10} strokeWidth={2} />
+                    Data sugerida: {new Date(smartParsed.dueDate!).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Quick action buttons + popovers */}
             <div
               ref={popoverAreaRef}
               className="relative flex gap-1 border-t border-slate-100/80 px-4 py-2 dark:border-white/[0.04]"
             >
-              {/* Date */}
               <button
                 onClick={() =>
                   setActivePopover(activePopover === "date" ? null : "date")
@@ -271,7 +366,6 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
                   : "Data"}
               </button>
 
-              {/* Reminder */}
               <button
                 onClick={() =>
                   setActivePopover(
@@ -288,7 +382,6 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
                 {hasReminder ? quickMeta.reminderTime : "Lembrete"}
               </button>
 
-              {/* Repeat */}
               <button
                 onClick={() =>
                   setActivePopover(
@@ -317,9 +410,16 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
               <AnimatePresence>
                 {activePopover === "date" && (
                   <PopoverPanel key="pop-date">
-                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">
-                      Data de entrega
-                    </label>
+                    <div className="mb-3 flex items-center gap-2">
+                      <CalendarDays
+                        size={14}
+                        strokeWidth={1.5}
+                        className="text-indigo-500"
+                      />
+                      <span className="text-xs font-bold tracking-tight text-slate-800 dark:text-zinc-200">
+                        Data de entrega
+                      </span>
+                    </div>
                     <input
                       type="date"
                       autoFocus
@@ -327,16 +427,16 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
                       onChange={(e) =>
                         setQuickMeta({ ...quickMeta, dueDate: e.target.value })
                       }
-                      className="w-full rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
+                      className="w-full rounded-xl border border-slate-200/60 bg-white/60 px-3.5 py-2.5 text-sm font-semibold tracking-tight text-slate-700 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/30 dark:border-white/[0.08] dark:bg-zinc-800/60 dark:text-zinc-300"
                     />
                     {quickMeta.dueDate && (
                       <button
                         onClick={() =>
                           setQuickMeta({ ...quickMeta, dueDate: "" })
                         }
-                        className="mt-1.5 text-[10px] font-semibold text-red-400 hover:text-red-500"
+                        className="mt-2 text-[11px] font-semibold text-red-400 transition-colors hover:text-red-500"
                       >
-                        Limpar
+                        Limpar data
                       </button>
                     )}
                   </PopoverPanel>
@@ -344,10 +444,17 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
 
                 {activePopover === "reminder" && (
                   <PopoverPanel key="pop-reminder">
-                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-500 dark:text-blue-400">
-                      Lembrete
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Bell
+                        size={14}
+                        strokeWidth={1.5}
+                        className="text-blue-500"
+                      />
+                      <span className="text-xs font-bold tracking-tight text-slate-800 dark:text-zinc-200">
+                        Lembrete
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
                       <input
                         type="date"
                         autoFocus
@@ -358,7 +465,7 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
                             reminderDate: e.target.value,
                           })
                         }
-                        className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
+                        className="rounded-xl border border-slate-200/60 bg-white/60 px-3 py-2.5 text-sm font-semibold tracking-tight text-slate-700 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 dark:border-white/[0.08] dark:bg-zinc-800/60 dark:text-zinc-300"
                       />
                       <input
                         type="time"
@@ -369,7 +476,7 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
                             reminderTime: e.target.value,
                           })
                         }
-                        className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
+                        className="rounded-xl border border-slate-200/60 bg-white/60 px-3 py-2.5 text-sm font-semibold tracking-tight text-slate-700 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 dark:border-white/[0.08] dark:bg-zinc-800/60 dark:text-zinc-300"
                       />
                     </div>
                     {(quickMeta.reminderDate || quickMeta.reminderTime) && (
@@ -381,9 +488,9 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
                             reminderTime: "",
                           })
                         }
-                        className="mt-1.5 text-[10px] font-semibold text-red-400 hover:text-red-500"
+                        className="mt-2 text-[11px] font-semibold text-red-400 transition-colors hover:text-red-500"
                       >
-                        Limpar
+                        Limpar lembrete
                       </button>
                     )}
                   </PopoverPanel>
@@ -391,9 +498,16 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
 
                 {activePopover === "repeat" && (
                   <PopoverPanel key="pop-repeat">
-                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-orange-500 dark:text-orange-400">
-                      Repetir
-                    </label>
+                    <div className="mb-3 flex items-center gap-2">
+                      <Repeat
+                        size={14}
+                        strokeWidth={1.5}
+                        className="text-orange-500"
+                      />
+                      <span className="text-xs font-bold tracking-tight text-slate-800 dark:text-zinc-200">
+                        Repetir
+                      </span>
+                    </div>
                     <select
                       autoFocus
                       value={quickMeta.repeat}
@@ -403,7 +517,7 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
                           repeat: e.target.value,
                         })
                       }
-                      className="w-full rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
+                      className="w-full rounded-xl border border-slate-200/60 bg-white/60 px-3.5 py-2.5 text-sm font-semibold tracking-tight text-slate-700 outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400/30 dark:border-white/[0.08] dark:bg-zinc-800/60 dark:text-zinc-300"
                     >
                       <option value="NONE">Nao repete</option>
                       <option value="DAILY">Diariamente</option>
@@ -412,7 +526,7 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
                       <option value="CUSTOM">A cada X dias</option>
                     </select>
                     {quickMeta.repeat === "CUSTOM" && (
-                      <div className="mt-2 flex items-center gap-2">
+                      <div className="mt-3 flex items-center gap-2.5">
                         <input
                           type="number"
                           min={1}
@@ -423,10 +537,10 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
                               repeatDays: parseInt(e.target.value) || "",
                             })
                           }
-                          className="w-20 rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
-                          placeholder="Dias"
+                          className="w-20 rounded-xl border border-slate-200/60 bg-white/60 px-3 py-2.5 text-sm font-semibold tracking-tight text-slate-700 outline-none dark:border-white/[0.08] dark:bg-zinc-800/60 dark:text-zinc-300"
+                          placeholder="7"
                         />
-                        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-zinc-500">
+                        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-zinc-500">
                           dias
                         </span>
                       </div>
@@ -439,52 +553,35 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
         </div>
 
         {/* ---------------------------------------------------------------- */}
-        {/* Pending tasks — scrollable with Drag & Drop                       */}
+        {/* Pending tasks — sortable via press-to-drag                       */}
         {/* ---------------------------------------------------------------- */}
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-none px-6 pb-2">
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="pending-tasks">
-              {(droppableProvided) => (
-                <div
-                  ref={droppableProvided.innerRef}
-                  {...droppableProvided.droppableProps}
-                >
-                  {pending.map((task, index) => (
-                    <Draggable
-                      key={task.id}
-                      draggableId={String(task.id)}
-                      index={index}
-                    >
-                      {(dragProvided, snapshot) => (
-                        <div
-                          ref={dragProvided.innerRef}
-                          {...dragProvided.draggableProps}
-                          style={dragProvided.draggableProps.style}
-                          className="mb-2"
-                        >
-                          <TaskRow
-                            task={task}
-                            dragHandleProps={dragProvided.dragHandleProps}
-                            isDragging={snapshot.isDragging}
-                            onToggle={() => handleToggle(task)}
-                            onDelete={() => handleDelete(task.id)}
-                            onClick={() => setActiveTask(task)}
-                            onAddStep={handleAddStep}
-                            onToggleStep={handleToggleStep}
-                            onDeleteStep={handleDeleteStep}
-                            onColorChange={(color) =>
-                              handleColorChange(task.id, color)
-                            }
-                          />
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {droppableProvided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={pending.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {pending.map((task) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  onToggle={() => handleToggle(task)}
+                  onDelete={() => handleDelete(task.id)}
+                  onClick={() => setActiveTask(task)}
+                  onAddStep={handleAddStep}
+                  onToggleStep={handleToggleStep}
+                  onDeleteStep={handleDeleteStep}
+                  onColorChange={(color) =>
+                    handleColorChange(task.id, color)
+                  }
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
 
           {pending.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20">
@@ -501,7 +598,7 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
         </div>
 
         {/* ---------------------------------------------------------------- */}
-        {/* Completed dock — fixed bottom                                     */}
+        {/* Completed dock                                                   */}
         {/* ---------------------------------------------------------------- */}
         <div className="shrink-0 border-t border-slate-200/60 bg-white dark:border-white/[0.06] dark:bg-zinc-900">
           <button
@@ -571,7 +668,6 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
         </div>
       </div>
 
-      {/* Side Sheet */}
       <TaskSideSheet
         task={activeTask}
         onClose={() => setActiveTask(null)}
@@ -579,7 +675,6 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
         onColorChange={handleColorChange}
       />
 
-      {/* History Overlay */}
       <HistoryOverlay
         open={showHistory}
         onClose={() => setShowHistory(false)}
@@ -592,17 +687,17 @@ export function TaskBoard({ pending, completed, onRefresh }: TaskBoardProps) {
 }
 
 /* ========================================================================== */
-/* PopoverPanel                                                                */
+/* PopoverPanel — Apple glass morphism                                        */
 /* ========================================================================== */
 
 function PopoverPanel({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -4 }}
-      transition={{ duration: 0.15 }}
-      className="absolute left-0 top-full z-50 mt-1 w-64 rounded-xl border border-slate-200/60 bg-white p-3 shadow-lg dark:border-white/[0.08] dark:bg-zinc-900"
+      initial={{ opacity: 0, y: -6, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -6, scale: 0.97 }}
+      transition={{ type: "spring", stiffness: 500, damping: 32 }}
+      className="absolute left-0 top-full z-50 mt-2 w-72 rounded-3xl border border-slate-200/40 bg-white/80 p-5 shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-white/[0.06] dark:bg-zinc-900/80 dark:shadow-none"
       onClick={(e) => e.stopPropagation()}
     >
       {children}
@@ -611,13 +706,11 @@ function PopoverPanel({ children }: { children: React.ReactNode }) {
 }
 
 /* ========================================================================== */
-/* TaskRow                                                                     */
+/* TaskRow — sortable card (press-to-drag, no grip icon)                      */
 /* ========================================================================== */
 
 interface TaskRowProps {
   task: Task;
-  dragHandleProps: DraggableProvidedDragHandleProps | null | undefined;
-  isDragging: boolean;
   onToggle: () => void;
   onDelete: () => void;
   onClick: () => void;
@@ -629,8 +722,6 @@ interface TaskRowProps {
 
 function TaskRow({
   task,
-  dragHandleProps,
-  isDragging,
   onToggle,
   onDelete,
   onClick,
@@ -639,6 +730,15 @@ function TaskRow({
   onDeleteStep,
   onColorChange,
 }: TaskRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
   const [showStepInput, setShowStepInput] = useState(false);
   const [stepInput, setStepInput] = useState("");
   const [expanded, setExpanded] = useState(false);
@@ -646,11 +746,24 @@ function TaskRow({
   const hasSteps = task.steps && task.steps.length > 0;
   const doneSteps = task.steps?.filter((s) => s.done).length || 0;
 
+  const sortableStyle: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    borderLeftWidth: 5,
+    borderLeftColor: task.color
+      ? colorHexMap[task.color] ?? "transparent"
+      : "transparent",
+  };
+
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border border-slate-200/60 border-l-[5px] bg-white shadow-sm transition-shadow dark:border-white/[0.06] dark:bg-zinc-900 ${getBorderColor(task.color)} ${
+      ref={setNodeRef}
+      style={sortableStyle}
+      {...attributes}
+      {...listeners}
+      className={`group relative mb-2 overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm transition-shadow select-none dark:border-white/[0.06] dark:bg-zinc-900 ${
         isDragging
-          ? "shadow-lg ring-2 ring-indigo-500/20"
+          ? "z-50 scale-[1.02] opacity-90 shadow-2xl ring-2 ring-indigo-500/20"
           : "hover:shadow-md"
       }`}
     >
@@ -658,14 +771,6 @@ function TaskRow({
         className="relative flex items-start gap-3.5 px-5 py-4"
         onClick={onClick}
       >
-        {/* Drag handle */}
-        <div
-          {...(dragHandleProps ?? {})}
-          className="mt-1 shrink-0 cursor-grab text-slate-200 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing dark:text-zinc-700"
-        >
-          <GripVertical size={14} strokeWidth={1.5} />
-        </div>
-
         {/* Checkbox */}
         <button
           onClick={(e) => {
@@ -681,7 +786,6 @@ function TaskRow({
             {task.title}
           </p>
 
-          {/* Meta chips */}
           <div className="mt-1.5 flex items-center gap-2">
             {task.due_date && (
               <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-zinc-500">
@@ -815,7 +919,6 @@ function TaskRow({
 
         {/* Action buttons (hover) */}
         <div className="absolute right-4 top-4 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          {/* Color picker — Radix Portal (never clipped by overflow) */}
           <ColorPopover.Root>
             <ColorPopover.Trigger asChild>
               <button
@@ -877,7 +980,7 @@ function TaskRow({
 }
 
 /* ========================================================================== */
-/* CompletedRow                                                                */
+/* CompletedRow                                                               */
 /* ========================================================================== */
 
 interface CompletedRowProps {
@@ -921,7 +1024,7 @@ function CompletedRow({ task, onToggle, onDelete }: CompletedRowProps) {
 }
 
 /* ========================================================================== */
-/* HistoryOverlay                                                              */
+/* HistoryOverlay                                                             */
 /* ========================================================================== */
 
 function HistoryOverlay({
@@ -980,7 +1083,6 @@ function HistoryOverlay({
             className="flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-2xl dark:border-white/[0.08] dark:bg-zinc-900"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex shrink-0 items-center justify-between border-b border-slate-200/60 px-6 py-4 dark:border-white/[0.06]">
               <div>
                 <h2 className="text-base font-bold tracking-tight text-slate-900 dark:text-zinc-100">
@@ -998,7 +1100,6 @@ function HistoryOverlay({
               </button>
             </div>
 
-            {/* Filters */}
             <div className="flex shrink-0 gap-3 border-b border-slate-100/80 px-6 py-3 dark:border-white/[0.04]">
               <div className="relative flex-1">
                 <Search
@@ -1022,7 +1123,6 @@ function HistoryOverlay({
               />
             </div>
 
-            {/* List */}
             <div className="min-h-0 flex-1 overflow-y-auto scrollbar-none px-6 py-4">
               {sortedDates.length === 0 && (
                 <p className="py-8 text-center text-xs font-medium text-slate-300 dark:text-zinc-600">
