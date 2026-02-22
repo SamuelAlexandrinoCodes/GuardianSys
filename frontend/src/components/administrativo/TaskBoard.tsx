@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   DndContext,
   DragOverlay,
-  rectIntersection,
+  pointerWithin,
   PointerSensor,
   useSensor,
   useSensors,
@@ -854,7 +854,8 @@ export function TaskBoard({
 
   const handleColorChange = useCallback(
     async (taskId: number, color: string | null) => {
-      await api.updateTask(taskId, { color: color });
+      // Força string vazia se for null para o Pydantic reconhecer a limpeza
+      await api.updateTask(taskId, { color: color === null ? "" : color });
       onRefresh();
     },
     [onRefresh]
@@ -1009,7 +1010,7 @@ export function TaskBoard({
     <>
       <DndContext
         sensors={sensors}
-        collisionDetection={rectIntersection}
+        collisionDetection={pointerWithin}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
@@ -1571,14 +1572,15 @@ export function TaskBoard({
               layout
               initial={false}
               animate={{
-                scale: isOverBubbleZone ? 0.9 : 1,
-                opacity: 0.95,
+                width: isOverBubbleZone ? 160 : "100%",
+                height: isOverBubbleZone ? 40 : "auto",
+                opacity: isOverBubbleZone ? 1 : 0.95,
               }}
               transition={{ duration: 0.25, ease: "easeInOut" }}
-              className={`overflow-hidden shadow-2xl ${
+              className={`overflow-hidden ${
                 isOverBubbleZone
-                  ? "rounded-full bg-blue-600 border-none shadow-blue-500/50 flex items-center justify-center p-3"
-                  : "rounded-2xl border border-slate-200/60 bg-white dark:border-white/[0.06] dark:bg-zinc-900"
+                  ? "rounded-full bg-blue-500 border-none shadow-[0_10px_40px_rgba(59,130,246,0.6)] flex items-center justify-center text-white"
+                  : "rounded-2xl border border-slate-200/60 bg-white shadow-2xl dark:border-white/[0.06] dark:bg-zinc-900"
               }`}
               style={{
                 borderLeftWidth: isOverBubbleZone ? 0 : 5,
