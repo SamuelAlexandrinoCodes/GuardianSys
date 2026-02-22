@@ -9,6 +9,8 @@ import {
   DoorOpen,
   FolderSync,
   Check,
+  Bell,
+  Volume2,
 } from "lucide-react";
 import type { SystemSettings } from "../types";
 import { api } from "../lib/api";
@@ -26,6 +28,7 @@ export function SettingsPage() {
   const [floors, setFloors] = useState(18);
   const [units, setUnits] = useState(12);
   const [backupPath, setBackupPath] = useState("");
+  const [reminderSound, setReminderSound] = useState<string>("chimes1");
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -36,6 +39,7 @@ export function SettingsPage() {
       setFloors(res.total_floors);
       setUnits(res.units_per_floor);
       setBackupPath(res.backup_path || "");
+      setReminderSound(res.reminder_sound || "chimes1");
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, []);
@@ -52,6 +56,7 @@ export function SettingsPage() {
         total_floors: floors,
         units_per_floor: units,
         backup_path: backupPath || null,
+        reminder_sound: reminderSound,
       });
       setSettings(res);
       setSaved(true);
@@ -109,6 +114,46 @@ export function SettingsPage() {
               </SettingRow>
             </FormSection>
 
+            {/* Som dos Lembretes */}
+            <FormSection icon={Bell} label="Lembretes > Sons">
+              <SettingRow label="Som padrao" description="Clique para ouvir. A selecao e salva como padrao do sistema.">
+                <div className="space-y-3">
+                  <div>
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+                      Chimes
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {(["chimes1", "chimes2", "chimes3", "chimes4"] as const).map((id) => (
+                        <SoundButton
+                          key={id}
+                          id={id}
+                          label={id.replace("chimes", "")}
+                          selected={reminderSound === id}
+                          onSelect={() => setReminderSound(id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
+                      Modern
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {(["modern1", "modern2", "modern3"] as const).map((id) => (
+                        <SoundButton
+                          key={id}
+                          id={id}
+                          label={id.replace("modern", "")}
+                          selected={reminderSound === id}
+                          onSelect={() => setReminderSound(id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </SettingRow>
+            </FormSection>
+
             {/* Backup */}
             <FormSection icon={FolderSync} label="Backup Automatico">
               <SettingRow label="Caminho do Espelho" description="Pasta para backup automatico (VACUUM INTO). Deixe vazio para desativar.">
@@ -143,6 +188,41 @@ export function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sound Button (preview + select)
+// ---------------------------------------------------------------------------
+
+function SoundButton({
+  id,
+  label,
+  selected,
+  onSelect,
+}: {
+  id: string;
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      onMouseDown={() => {
+        const a = new Audio(`/sounds/${id}.mp3`);
+        a.play().catch(() => {});
+      }}
+      className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+        selected
+          ? "border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-500/10 dark:text-indigo-400"
+          : "border-slate-200/60 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+      }`}
+    >
+      <Volume2 size={12} strokeWidth={1.5} />
+      {label}
+    </button>
   );
 }
 

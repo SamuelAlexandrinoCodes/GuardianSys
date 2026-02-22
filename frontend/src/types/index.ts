@@ -20,7 +20,11 @@ export interface Task {
   repeat: string;
   repeat_interval_days: number | null;
   color: string | null;
+  custom_sound?: string | null;
   in_agenda: boolean;
+  is_important?: boolean;
+  is_assigned?: boolean;
+  list_id?: number | null;
   notes: string | null;
   created_at: string | null;
   files_folder: string | null;
@@ -408,6 +412,12 @@ export interface SystemInfo {
 // Settings
 // ---------------------------------------------------------------------------
 
+export interface TaskList {
+  id: number;
+  name: string;
+  order_index: number;
+}
+
 export interface SystemSettings {
   id: number;
   condo_name: string;
@@ -415,4 +425,5 @@ export interface SystemSettings {
   total_floors: number;
   units_per_floor: number;
   backup_path: string | null;
+  reminder_sound?: string | null; // chimes1-4, modern1-3
 }

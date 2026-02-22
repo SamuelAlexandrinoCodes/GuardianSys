@@ -53,6 +53,12 @@ def create_db_and_tables():
             "ALTER TABLE task ADD COLUMN repeat_interval_days INTEGER",
             "ALTER TABLE task ADD COLUMN recurrence_spawned_at DATETIME",
             "ALTER TABLE task ADD COLUMN color VARCHAR",
+            "ALTER TABLE task ADD COLUMN reminder_sent INTEGER DEFAULT 0",
+            "ALTER TABLE systemconfig ADD COLUMN reminder_sound VARCHAR",
+            "ALTER TABLE task ADD COLUMN custom_sound VARCHAR",
+            "ALTER TABLE task ADD COLUMN is_important INTEGER DEFAULT 0",
+            "ALTER TABLE task ADD COLUMN list_id INTEGER REFERENCES tasklist(id)",
+            "ALTER TABLE task ADD COLUMN is_assigned INTEGER DEFAULT 0",
         ]
         for col_sql in migs:
             try:

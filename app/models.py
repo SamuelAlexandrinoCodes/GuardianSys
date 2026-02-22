@@ -9,6 +9,7 @@ class SystemConfig(SQLModel, table=True):
     total_floors: int = Field(default=18)
     units_per_floor: int = Field(default=12)
     backup_path: Optional[str] = None
+    reminder_sound: Optional[str] = None  # chimes1-4, modern1-3 — som padrão (fallback: chimes1)
 
 class Unit(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -74,6 +75,13 @@ class Inventory(SQLModel, table=True):
     write_off_date: Optional[date] = None
     last_updated: datetime = Field(default_factory=datetime.now)
 
+class TaskList(SQLModel, table=True):
+    """Lista personalizada de tarefas."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True)
+    order_index: int = Field(default=0)
+
+
 class TaskStep(SQLModel, table=True):
     """Subtarefa (step) de uma Task."""
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -95,11 +103,16 @@ class Task(SQLModel, table=True):
     status: str = Field(default="PENDENTE")
     # Campos estilo MS To Do
     reminder_at: Optional[datetime] = None
+    reminder_sent: bool = Field(default=False)  # True quando o lembrete foi mostrado/ignorado
     repeat: str = Field(default="NONE")  # NONE, DAILY, WEEKLY, MONTHLY, CUSTOM
     repeat_interval_days: Optional[int] = None
     recurrence_spawned_at: Optional[datetime] = None
     color: Optional[str] = None
+    custom_sound: Optional[str] = None  # chimes1-4, modern1-3 — som específico da tarefa
     in_agenda: bool = Field(default=True)
+    is_important: bool = Field(default=False)
+    is_assigned: bool = Field(default=False)  # Atribuído a mim (fixo, persiste)
+    list_id: Optional[int] = Field(default=None, foreign_key="tasklist.id")
     notes: Optional[str] = None
     created_at: Optional[datetime] = Field(default_factory=datetime.now)
     files_folder: Optional[str] = None

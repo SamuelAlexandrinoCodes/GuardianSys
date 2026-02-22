@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import type { AdministrativoData } from "../types";
 import { api } from "../lib/api";
-import { TaskBoard } from "../components/administrativo/TaskBoard";
+import { TaskBoard, type TaskFilterValue } from "../components/administrativo/TaskBoard";
 import { MeetingAgenda } from "../components/administrativo/MeetingAgenda";
 import { PayableList } from "../components/administrativo/PayableList";
 import { FinancePage } from "./FinancePage";
@@ -25,7 +25,9 @@ type TabId = (typeof tabs)[number]["id"];
 
 export function AdministrativoPage() {
   const [activeTab, setActiveTab] = useState<TabId>("tarefas");
+  const [taskFilter, setTaskFilter] = useState<TaskFilterValue>("meu_dia");
   const [data, setData] = useState<AdministrativoData | null>(null);
+  const [lists, setLists] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const needsAdminData = activeTab !== "financeiro";
@@ -33,14 +35,20 @@ export function AdministrativoPage() {
   const fetchData = useCallback(async () => {
     if (!needsAdminData) { setLoading(false); return; }
     try {
-      const result = await api.getAdministrativo(activeTab);
-      setData(result);
+      const [adminResult, listsResult] = await Promise.all([
+        api.getAdministrativo(activeTab, taskFilter),
+        activeTab === "tarefas" ? api.getTaskLists() : Promise.resolve([]),
+      ]);
+      setData(adminResult);
+      if (activeTab === "tarefas" && Array.isArray(listsResult)) {
+        setLists(listsResult);
+      }
     } catch (err) {
       console.error("Erro ao carregar dados:", err);
     } finally {
       setLoading(false);
     }
-  }, [activeTab, needsAdminData]);
+  }, [activeTab, needsAdminData, taskFilter]);
 
   useEffect(() => {
     setLoading(true);
@@ -104,6 +112,10 @@ export function AdministrativoPage() {
               <TaskBoard
                 pending={data.tasks_pending}
                 completed={data.tasks_completed}
+                taskFilter={taskFilter}
+                onTaskFilterChange={setTaskFilter}
+                lists={lists}
+                onListsChange={setLists}
                 onRefresh={handleRefresh}
               />
             )}

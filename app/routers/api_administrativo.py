@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select, or_
 
 from app.database import engine
-from app.models import Task, TaskStep, Meeting, Payable, Reservation, Unit, Resident
+from app.models import Task, TaskStep, TaskList, Meeting, Payable, Reservation, Unit, Resident
 from app.config import get_config, run_backup_job, STORAGE_DIR
 from app.smart_dates import resolve_date_or_smart, resolve_datetime_or_smart
 from app.recurrence import run_recreate_recurring_tasks
@@ -31,6 +31,9 @@ class TaskCreate(BaseModel):
     title: str
     start_date: Optional[str] = None
     due_date: Optional[str] = None
+    is_important: Optional[bool] = None
+    is_assigned: Optional[bool] = None
+    list_id: Optional[int] = None
     description: Optional[str] = None
     details: Optional[str] = None
     reminder_at: Optional[str] = None
@@ -41,6 +44,9 @@ class TaskCreate(BaseModel):
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
     start_date: Optional[str] = None
+    is_important: Optional[bool] = None
+    is_assigned: Optional[bool] = None
+    list_id: Optional[int] = None
     due_date: Optional[str] = None
     details: Optional[str] = None
     notes: Optional[str] = None
@@ -102,10 +108,15 @@ def _serialize_task(t: Task, steps: list[TaskStep] | None = None) -> dict:
         "type": t.type,
         "status": t.status,
         "reminder_at": t.reminder_at.isoformat() if t.reminder_at else None,
+        "reminder_sent": getattr(t, "reminder_sent", False),
         "repeat": t.repeat or "NONE",
         "repeat_interval_days": t.repeat_interval_days,
         "color": t.color,
+        "custom_sound": getattr(t, "custom_sound", None),
         "in_agenda": t.in_agenda,
+        "is_important": getattr(t, "is_important", False),
+        "is_assigned": getattr(t, "is_assigned", False),
+        "list_id": getattr(t, "list_id", None),
         "notes": t.notes,
         "created_at": t.created_at.isoformat() if t.created_at else None,
         "files_folder": t.files_folder,
@@ -169,7 +180,7 @@ def _serialize_reservation(r, unit=None, resident=None) -> dict:
 # ---------------------------------------------------------------------------
 
 @router.get("/administrativo")
-def get_administrativo(tab: str = "tarefas"):
+def get_administrativo(tab: str = "tarefas", task_filter: str = "geral"):
     if tab == "tarefas":
         run_recreate_recurring_tasks()
 
@@ -177,18 +188,34 @@ def get_administrativo(tab: str = "tarefas"):
         config = get_config(session)
         today = date.today()
 
-        # --- Tarefas ---
-        # TODAS as tarefas pendentes aparecem na lista (start_date não filtra; Dashboard usa depois)
+        # --- Tarefas — filtros: meu_dia, importante, planejado, geral ---
+        base_pending = select(Task).where(Task.type == "TAREFA", Task.status == "PENDENTE")
+        base_completed = select(Task).where(Task.type == "TAREFA", Task.status == "CONCLUIDO")
+
+        if task_filter == "meu_dia":
+            base_pending = base_pending.where(Task.start_date.isnot(None), Task.start_date <= today)
+            base_completed = base_completed.where(Task.start_date.isnot(None), Task.start_date <= today)
+        elif task_filter == "importante":
+            base_pending = base_pending.where(Task.is_important == True)
+            base_completed = base_completed.where(Task.is_important == True)
+        elif task_filter == "planejado":
+            base_pending = base_pending.where(Task.is_assigned == True)
+            base_completed = base_completed.where(Task.is_assigned == True)
+        elif task_filter.startswith("list:"):
+            try:
+                list_id = int(task_filter.split(":")[1])
+                base_pending = base_pending.where(Task.list_id == list_id)
+                base_completed = base_completed.where(Task.list_id == list_id)
+            except (ValueError, IndexError):
+                pass
+        # geral: sem filtro adicional
+
         tasks_pending = session.exec(
-            select(Task).where(
-                Task.type == "TAREFA",
-                Task.status == "PENDENTE",
-            ).order_by(Task.order_index.asc(), Task.due_date.asc().nullslast())
+            base_pending.order_by(Task.order_index.asc(), Task.due_date.asc().nullslast())
         ).all()
 
         tasks_completed = session.exec(
-            select(Task).where(Task.type == "TAREFA", Task.status == "CONCLUIDO")
-            .order_by(Task.order_index.asc(), Task.completed_at.desc().nullslast())
+            base_completed.order_by(Task.order_index.asc(), Task.completed_at.desc().nullslast())
         ).all()
 
         all_tasks = tasks_pending + tasks_completed
@@ -297,6 +324,9 @@ def create_task(payload: TaskCreate, background_tasks: BackgroundTasks):
             repeat_interval_days=(rep_days if rep == "CUSTOM" else None),
             in_agenda=payload.in_agenda,
             order_index=next_order_index,
+            is_important=payload.is_important if payload.is_important is not None else False,
+            is_assigned=payload.is_assigned if payload.is_assigned is not None else False,
+            list_id=payload.list_id,
         )
         session.add(task)
         session.commit()
@@ -352,7 +382,7 @@ def update_task(task_id: int, payload: TaskUpdate, background_tasks: BackgroundT
         if payload.title is not None and payload.title.strip():
             t.title = payload.title.strip()
         if payload.start_date is not None:
-            t.start_date = resolve_date_or_smart(payload.start_date) if payload.start_date.strip() else None
+            t.start_date = resolve_date_or_smart(payload.start_date) if (payload.start_date and payload.start_date.strip()) else None
         if payload.due_date is not None:
             t.due_date = resolve_date_or_smart(payload.due_date) if payload.due_date.strip() else None
         if payload.details is not None:
@@ -372,6 +402,12 @@ def update_task(task_id: int, payload: TaskUpdate, background_tasks: BackgroundT
             t.color = payload.color.strip() or None
         if payload.in_agenda is not None:
             t.in_agenda = payload.in_agenda
+        if payload.is_important is not None:
+            t.is_important = payload.is_important
+        if payload.is_assigned is not None:
+            t.is_assigned = payload.is_assigned
+        if payload.list_id is not None:
+            t.list_id = payload.list_id
 
         session.add(t)
         session.commit()
@@ -395,6 +431,68 @@ def reorder_tasks(background_tasks: BackgroundTasks, order: list[int] = Body(...
                 session.add(t)
         session.commit()
         background_tasks.add_task(run_backup_job)
+    return JSONResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# LISTAS PERSONALIZADAS
+# ---------------------------------------------------------------------------
+
+class TaskListCreate(BaseModel):
+    name: str
+
+class TaskListUpdate(BaseModel):
+    name: Optional[str] = None
+    order_index: Optional[int] = None
+
+@router.get("/administrativo/lists")
+def get_task_lists():
+    with Session(engine) as session:
+        lists = session.exec(
+            select(TaskList).order_by(TaskList.order_index.asc(), TaskList.id.asc())
+        ).all()
+        return JSONResponse([{"id": tl.id, "name": tl.name, "order_index": tl.order_index} for tl in lists])
+
+@router.post("/administrativo/list")
+def create_task_list(payload: TaskListCreate, background_tasks: BackgroundTasks):
+    with Session(engine) as session:
+        orders = [o for o in session.exec(select(TaskList.order_index)) if o is not None]
+        next_order = max(orders, default=0) + 1
+        tl = TaskList(name=payload.name.strip() or "Nova Lista", order_index=next_order)
+        session.add(tl)
+        session.commit()
+        session.refresh(tl)
+        background_tasks.add_task(run_backup_job)
+        return JSONResponse({"id": tl.id, "name": tl.name, "order_index": tl.order_index}, status_code=201)
+
+@router.patch("/administrativo/list/{list_id}")
+def update_task_list(list_id: int, payload: TaskListUpdate, background_tasks: BackgroundTasks):
+    with Session(engine) as session:
+        tl = session.get(TaskList, list_id)
+        if not tl:
+            return JSONResponse({"error": "Lista não encontrada"}, status_code=404)
+        if payload.name is not None and payload.name.strip():
+            tl.name = payload.name.strip()
+        if payload.order_index is not None:
+            tl.order_index = payload.order_index
+        session.add(tl)
+        session.commit()
+        background_tasks.add_task(run_backup_job)
+        return JSONResponse({"id": tl.id, "name": tl.name, "order_index": tl.order_index})
+
+@router.delete("/administrativo/list/{list_id}")
+def delete_task_list(list_id: int, background_tasks: BackgroundTasks):
+    with Session(engine) as session:
+        tl = session.get(TaskList, list_id)
+        if tl:
+            # Cascade: remove todas as tarefas (e steps) desta lista
+            for t in session.exec(select(Task).where(Task.list_id == list_id)).all():
+                for step in session.exec(select(TaskStep).where(TaskStep.task_id == t.id)).all():
+                    session.delete(step)
+                session.delete(t)
+            session.delete(tl)
+            session.commit()
+            background_tasks.add_task(run_backup_job)
     return JSONResponse({"ok": True})
 
 
@@ -430,6 +528,89 @@ def get_reminders():
             {"id": t.id, "title": t.title, "reminder_at": t.reminder_at.isoformat() if t.reminder_at else None}
             for t in tasks
         ])
+
+
+VALID_REMINDER_SOUNDS = frozenset(("chimes1", "chimes2", "chimes3", "chimes4", "modern1", "modern2", "modern3"))
+
+
+def _reminder_sound_final(task_custom: str | None, config_default: str | None) -> str:
+    if task_custom and task_custom in VALID_REMINDER_SOUNDS:
+        return task_custom
+    if config_default and config_default in VALID_REMINDER_SOUNDS:
+        return config_default
+    return "chimes1"
+
+
+@router.get("/administrativo/reminders/due")
+def get_reminders_due():
+    """Tarefas com reminder_at <= agora e reminder_sent=False (para vigia/polling).
+    Inclui campo 'sound' (prioridade: custom_sound > reminder_sound > chimes1)."""
+    with Session(engine) as session:
+        config = get_config(session)
+        default_sound = getattr(config, "reminder_sound", None) or "chimes1"
+        now = datetime.now()
+        tasks = session.exec(
+            select(Task).where(
+                Task.type == "TAREFA",
+                Task.status == "PENDENTE",
+                Task.reminder_at.isnot(None),
+                Task.reminder_at <= now,
+                or_(Task.reminder_sent.is_(None), Task.reminder_sent == False),
+            )
+        ).all()
+        result = []
+        for t in tasks:
+            d = _serialize_task(t, [])
+            d["sound"] = _reminder_sound_final(getattr(t, "custom_sound", None), default_sound)
+            result.append(d)
+        return JSONResponse(result)
+
+
+@router.post("/administrativo/task/{task_id}/reminder-dismiss")
+def reminder_dismiss(task_id: int, background_tasks: BackgroundTasks):
+    """Marca reminder_sent=True (ignorar)."""
+    with Session(engine) as session:
+        t = session.get(Task, task_id)
+        if not t:
+            return JSONResponse({"error": "Tarefa não encontrada"}, status_code=404)
+        t.reminder_sent = True
+        session.add(t)
+        session.commit()
+        background_tasks.add_task(run_backup_job)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/administrativo/task/{task_id}/reminder-postpone")
+def reminder_postpone(task_id: int, payload: dict = Body(...), background_tasks: BackgroundTasks = None):  # noqa: B008
+    """Adia o lembrete. Payload: { "minutes": 5 } ou { "minutes": 30 } ou { "hours": 1 } ou { "tomorrow": true }."""
+    from datetime import timedelta, date as date_type
+    with Session(engine) as session:
+        t = session.get(Task, task_id)
+        if not t or not t.reminder_at:
+            return JSONResponse({"error": "Tarefa ou lembrete não encontrado"}, status_code=404)
+        base = t.reminder_at.replace(tzinfo=None) if t.reminder_at.tzinfo else t.reminder_at
+        if payload.get("tomorrow"):
+            tomorrow = date_type.today() + timedelta(days=1)
+            t.reminder_at = base.replace(
+                year=tomorrow.year, month=tomorrow.month, day=tomorrow.day,
+                hour=9, minute=0, second=0, microsecond=0
+            )
+        elif "minutes" in payload:
+            t.reminder_at = base + timedelta(minutes=int(payload["minutes"]))
+        elif "hours" in payload:
+            t.reminder_at = base + timedelta(hours=int(payload["hours"]))
+        else:
+            return JSONResponse({"error": "Payload inválido. Use minutes, hours ou tomorrow."}, status_code=400)
+        t.reminder_sent = False
+        session.add(t)
+        session.commit()
+        if background_tasks:
+            background_tasks.add_task(run_backup_job)
+        steps = list(session.exec(
+            select(TaskStep).where(TaskStep.task_id == t.id)
+            .order_by(TaskStep.sort_order, TaskStep.id)
+        ).all())
+        return JSONResponse(_serialize_task(t, steps))
 
 
 @router.post("/administrativo/task/{task_id}/my-day")

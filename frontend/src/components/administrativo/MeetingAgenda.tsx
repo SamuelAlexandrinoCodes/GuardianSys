@@ -11,6 +11,7 @@ import {
 import type { Meeting } from "../../types";
 import { api } from "../../lib/api";
 import { Modal } from "../ui/Modal";
+import { Time24Input } from "../ui/Time24Input";
 
 interface MeetingAgendaProps {
   meetings: Meeting[];
@@ -198,13 +199,13 @@ function CreateMeetingModal({
           </div>
           <div>
             <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">
-              Horario
+              Horario (24h)
             </label>
-            <input
-              type="time"
+            <Time24Input
               value={meetingTime}
-              onChange={(e) => setMeetingTime(e.target.value)}
-              className="w-full rounded-xl border border-slate-200/60 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-200"
+              onChange={setMeetingTime}
+              placeholder="00:00"
+              className="w-full rounded-xl border border-slate-200/60 bg-slate-50 px-3 py-2.5 text-center text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-200"
             />
           </div>
         </div>

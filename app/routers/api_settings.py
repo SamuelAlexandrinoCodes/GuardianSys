@@ -26,11 +26,8 @@ class SettingsUpdate(BaseModel):
     total_floors: Optional[int] = None
     units_per_floor: Optional[int] = None
     backup_path: Optional[str] = None
+    reminder_sound: Optional[str] = None  # chimes1-4, modern1-3
 
-
-# ---------------------------------------------------------------------------
-# Serializer
-# ---------------------------------------------------------------------------
 
 def _ser(c: SystemConfig) -> dict:
     return {
@@ -40,6 +37,7 @@ def _ser(c: SystemConfig) -> dict:
         "total_floors": c.total_floors,
         "units_per_floor": c.units_per_floor,
         "backup_path": c.backup_path,
+        "reminder_sound": getattr(c, "reminder_sound", None),
     }
 
 
@@ -80,6 +78,9 @@ def update_settings(payload: SettingsUpdate, background_tasks: BackgroundTasks):
             config.units_per_floor = payload.units_per_floor
         if payload.backup_path is not None:
             config.backup_path = payload.backup_path or None
+        if payload.reminder_sound is not None:
+            valid = ("chimes1", "chimes2", "chimes3", "chimes4", "modern1", "modern2", "modern3")
+            config.reminder_sound = payload.reminder_sound if payload.reminder_sound in valid else None
 
         session.add(config)
 

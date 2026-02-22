@@ -17,10 +17,26 @@ async function request<T>(
 
 export const api = {
   // Administrativo — dados completos
-  getAdministrativo: (tab = "tarefas") =>
+  getAdministrativo: (tab = "tarefas", taskFilter = "geral") =>
     request<import("../types").AdministrativoData>(
-      `/administrativo?tab=${tab}`
+      `/administrativo?tab=${tab}&task_filter=${encodeURIComponent(taskFilter)}`
     ),
+  getTaskLists: () =>
+    request<import("../types").TaskList[]>("/administrativo/lists"),
+  createTaskList: (name: string) =>
+    request<import("../types").TaskList>("/administrativo/list", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  updateTaskList: (id: number, data: { name?: string; order_index?: number }) =>
+    request<import("../types").TaskList>(`/administrativo/list/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteTaskList: (id: number) =>
+    request<{ ok: boolean }>(`/administrativo/list/${id}`, {
+      method: "DELETE",
+    }),
 
   // Tarefas
   createTask: (data: Record<string, unknown>) =>
@@ -48,6 +64,17 @@ export const api = {
     }),
   getTask: (id: number) =>
     request<import("../types").Task>(`/administrativo/task/${id}`),
+
+  // Lembretes
+  getRemindersDue: () =>
+    request<import("../types").Task[]>("/administrativo/reminders/due"),
+  reminderDismiss: (taskId: number) =>
+    request<{ ok: boolean }>(`/administrativo/task/${taskId}/reminder-dismiss`, { method: "POST" }),
+  reminderPostpone: (taskId: number, payload: { minutes?: number; hours?: number; tomorrow?: boolean }) =>
+    request<import("../types").Task>(`/administrativo/task/${taskId}/reminder-postpone`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 
   // Steps
   addStep: (taskId: number, title: string) =>

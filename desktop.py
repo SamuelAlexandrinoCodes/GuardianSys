@@ -7,8 +7,13 @@ import socket
 import time
 import zipfile
 import shutil
+import json
+import logging
 from datetime import datetime
 from app.main import app
+from app.reminder_vigia import run_vigia_loop
+
+logger = logging.getLogger(__name__)
 
 # 🛑 MÁGICA ANTI-TRAVAMENTO 1: Desativa o uso da Placa de Vídeo.
 # Isso impede o WebView2 de derrubar o "explorer.exe" (Barra do Windows sumindo).
@@ -70,6 +75,19 @@ class Api:
         
         return {"status": "cancel", "message": "Operação cancelada."}
 
+
+def _trigger_reminder_via_bridge(api, task_data):
+    """Invoca window.triggerReminder(task_data) no frontend via pywebview."""
+    try:
+        window = getattr(api, "_window", None)
+        if not window:
+            return
+        js = f"typeof window.triggerReminder === 'function' && window.triggerReminder({json.dumps(task_data)})"
+        window.evaluate_js(js)
+    except Exception as e:
+        logger.warning("Falha ao disparar lembrete no frontend: %s", e)
+
+
 def start_server():
     # 🛑 MÁGICA ANTI-TRAVAMENTO 2: Uvicorn Educado.
     # Em vez de uvicorn.run(), usamos Config e Server para ele não sequestrar a Thread Principal.
@@ -98,15 +116,25 @@ if __name__ == '__main__':
     if server_ready:
         api = Api()
         window = webview.create_window(
-            'Guardian System', 
+            'Guardian System',
             f'http://{HOST}:{PORT}',
-            width=1200, 
+            width=1200,
             height=800,
             min_size=(1024, 768),
             js_api=api
         )
         api.set_window(window)
-        
+
+        def trigger_cb(task_data):
+            _trigger_reminder_via_bridge(api, task_data)
+
+        vigia_thread = threading.Thread(
+            target=run_vigia_loop,
+            args=(trigger_cb,),
+            daemon=True
+        )
+        vigia_thread.start()
+
         icon_path = 'guardian.ico'
         if os.path.exists(icon_path):
             webview.start(icon=icon_path)

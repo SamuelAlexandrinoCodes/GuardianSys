@@ -8,11 +8,19 @@ import {
   Repeat,
   FileText,
   Palette,
+  Star,
 } from "lucide-react";
 import type { Task, TaskStep } from "../../types";
 import { api } from "../../lib/api";
 import { SideSheet } from "../ui/SideSheet";
 import { Time24Input } from "../ui/Time24Input";
+
+/** Retorna true se o DateTime (date YYYY-MM-DD + time HH:mm) for anterior ou igual a agora. */
+function isReminderInPast(date: string, time: string): boolean {
+  if (!date || !time || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{1,2}:\d{1,2}$/.test(time)) return false;
+  const dt = new Date(`${date}T${time}:00`);
+  return !isNaN(dt.getTime()) && dt.getTime() <= Date.now();
+}
 
 interface TaskSideSheetProps {
   task: Task | null;
@@ -34,12 +42,13 @@ export function TaskSideSheet({ task, onClose, onRefresh, onColorChange }: TaskS
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [details, setDetails] = useState("");
-  const [reminderDate, setReminderDate] = useState("");
-  const [reminderTime, setReminderTime] = useState("");
+  const [reminder, setReminder] = useState<{ date: string; time: string }>({ date: "", time: "" });
   const [repeat, setRepeat] = useState("NONE");
   const [repeatDays, setRepeatDays] = useState<number | "">("");
   const [color, setColor] = useState<string | null>(null);
+  const [isImportant, setIsImportant] = useState(false);
   const [stepInput, setStepInput] = useState("");
+  const [reminderExpiredFeedback, setReminderExpiredFeedback] = useState(false);
 
   useEffect(() => {
     if (!task) return;
@@ -50,26 +59,37 @@ export function TaskSideSheet({ task, onClose, onRefresh, onColorChange }: TaskS
     setRepeat(task.repeat || "NONE");
     setRepeatDays(task.repeat_interval_days || "");
     setColor(task.color);
+    setIsImportant(task.is_important ?? false);
 
     if (task.reminder_at) {
       const [d, t] = task.reminder_at.split("T");
-      setReminderDate(d || "");
-      setReminderTime(t?.slice(0, 5) || "");
+      setReminder({ date: d || "", time: t?.slice(0, 5) || "" });
     } else {
-      setReminderDate("");
-      setReminderTime("");
+      setReminder({ date: "", time: "" });
     }
   }, [task]);
+
+  // Autolimpeza: se lembrete selecionado estiver no passado, resetar
+  useEffect(() => {
+    const { date, time } = reminder;
+    if (date && time && isReminderInPast(date, time)) {
+      setReminder({ date: "", time: "" });
+      setReminderExpiredFeedback(true);
+      const t = setTimeout(() => setReminderExpiredFeedback(false), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [reminder.date, reminder.time]);
 
   const syncMeta = useCallback(
     async (overrides: Record<string, unknown> = {}) => {
       if (!task) return;
-      let reminderAt = "";
-      const rd = overrides.reminderDate ?? reminderDate;
-      const rt = overrides.reminderTime ?? reminderTime;
-      if (rd && rt) {
-        reminderAt = `${rd}T${rt}`;
-      }
+      const r = (overrides.reminder as { date: string; time: string } | undefined) ?? reminder;
+      const reminderAt =
+        r.date && r.time
+          ? `${r.date}T${r.time}`
+          : overrides.reminder !== undefined
+            ? ""
+            : task.reminder_at ?? "";
       await api.updateTask(task.id, {
         title: overrides.title ?? title,
         start_date: overrides.startDate ?? startDate,
@@ -82,11 +102,28 @@ export function TaskSideSheet({ task, onClose, onRefresh, onColorChange }: TaskS
             ? (overrides.repeatDays ?? repeatDays) || null
             : null,
         color: overrides.color !== undefined ? overrides.color : color,
+        is_important: overrides.is_important !== undefined ? overrides.is_important : isImportant,
       });
       onRefresh();
     },
-    [task, title, startDate, dueDate, details, reminderDate, reminderTime, repeat, repeatDays, color, onRefresh]
+    [task, title, startDate, dueDate, details, reminder, repeat, repeatDays, color, isImportant, onRefresh]
   );
+
+  const persistReminder = useCallback(async () => {
+    const { date, time } = reminder;
+    if (date && time) {
+      if (isReminderInPast(date, time)) {
+        await syncMeta({ reminder: { date: "", time: "" } });
+        setReminder({ date: "", time: "" });
+        setReminderExpiredFeedback(true);
+        setTimeout(() => setReminderExpiredFeedback(false), 3000);
+      } else {
+        await syncMeta({ reminder: { date, time } });
+      }
+    } else if (!date && !time && task?.reminder_at) {
+      await syncMeta({ reminder: { date: "", time: "" } });
+    }
+  }, [reminder, task?.reminder_at, syncMeta]);
 
   const handleToggle = useCallback(async () => {
     if (!task) return;
@@ -120,10 +157,15 @@ export function TaskSideSheet({ task, onClose, onRefresh, onColorChange }: TaskS
     [task, onRefresh]
   );
 
+  const handleClose = useCallback(async () => {
+    await persistReminder();
+    onClose();
+  }, [persistReminder, onClose]);
+
   if (!task) return null;
 
   return (
-    <SideSheet open={!!task} onClose={onClose} title="Detalhes da Tarefa">
+    <SideSheet open={!!task} onClose={handleClose} title="Detalhes da Tarefa">
       <div className="space-y-8 p-6">
         {/* Title + Toggle */}
         <div className="flex items-start gap-4">
@@ -148,7 +190,29 @@ export function TaskSideSheet({ task, onClose, onRefresh, onColorChange }: TaskS
           />
         </div>
 
-        {/* Color picker */}
+        {/* Importante + Color picker */}
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => {
+              const next = !isImportant;
+              setIsImportant(next);
+              syncMeta({ is_important: next });
+            }}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+              isImportant
+                ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
+                : "bg-slate-50 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-700"
+            }`}
+          >
+            <Star
+              size={14}
+              strokeWidth={1.5}
+              className={isImportant ? "fill-amber-400 text-amber-400" : ""}
+            />
+            {isImportant ? "Importante" : "Marcar importante"}
+          </button>
+        </div>
         <div>
           <div className="mb-2 flex items-center gap-1.5">
             <Palette size={12} strokeWidth={1.5} className="text-slate-400 dark:text-zinc-500" />
@@ -160,24 +224,35 @@ export function TaskSideSheet({ task, onClose, onRefresh, onColorChange }: TaskS
             {colorOptions.map((c) => (
               <button
                 key={c.value}
-                onClick={() => {
-                  const newColor = color === c.value ? null : c.value;
-                  setColor(newColor);
-                  if (onColorChange && task) onColorChange(task.id, newColor);
-                  else syncMeta({ color: newColor });
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  const currentColor = task?.color ?? color;
+                  const newColor = currentColor === c.value ? "" : c.value;
+                  setColor(newColor || null);
+                  if (onColorChange && task) {
+                    onColorChange(task.id, newColor);
+                  } else if (task) {
+                    await api.updateTask(task.id, { color: newColor });
+                    onRefresh();
+                  }
                 }}
                 className={`h-5 w-5 rounded-full transition-transform hover:scale-125 ${c.bg} ${
-                  color === c.value
+                  (task?.color ?? color) === c.value
                     ? "ring-2 ring-offset-2 ring-slate-400 dark:ring-offset-zinc-900 dark:ring-zinc-500"
                     : ""
                 }`}
               />
             ))}
             <button
-              onClick={() => {
+              onClick={async (e) => {
+                e.stopPropagation();
                 setColor(null);
-                if (onColorChange && task) onColorChange(task.id, null);
-                else syncMeta({ color: null });
+                if (onColorChange && task) {
+                  onColorChange(task.id, "");
+                } else if (task) {
+                  await api.updateTask(task.id, { color: "" });
+                  onRefresh();
+                }
               }}
               className="flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-slate-300 text-[8px] text-slate-400 transition-transform hover:scale-125 dark:border-zinc-600 dark:text-zinc-600"
             >
@@ -228,67 +303,109 @@ export function TaskSideSheet({ task, onClose, onRefresh, onColorChange }: TaskS
               </div>
             ))}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-h-[40px] items-center gap-2 px-2">
             <Plus size={14} strokeWidth={1.5} className="shrink-0 text-slate-300 dark:text-zinc-600" />
             <input
               type="text"
               value={stepInput}
               onChange={(e) => setStepInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAddStep()}
-              placeholder="Adicionar subtarefa..."
-              className="flex-1 border-b border-slate-200 bg-transparent py-1.5 text-xs font-medium text-slate-700 outline-none placeholder:text-slate-300 dark:border-zinc-700 dark:text-zinc-300 dark:placeholder:text-zinc-600"
+              placeholder="Nova subtarefa..."
+              className="h-[40px] flex-1 border-b border-slate-200 bg-transparent py-2 text-[13px] font-medium leading-tight text-slate-700 outline-none placeholder:text-slate-300 dark:border-zinc-700 dark:text-zinc-300 dark:placeholder:text-zinc-600"
             />
           </div>
         </div>
 
-        {/* Dates */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">
-              <CalendarDays size={11} strokeWidth={1.5} />
-              Inicio
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              onBlur={() => syncMeta({ startDate })}
-              className="w-full rounded-xl border border-slate-200/60 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">
-              <CalendarDays size={11} strokeWidth={1.5} />
-              Entrega
-            </label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              onBlur={() => syncMeta({ dueDate })}
-              className="w-full rounded-xl border border-slate-200/60 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
-            />
-          </div>
-        </div>
+        {/* Dates — início: verde se < hoje (permissão); entrega: vermelho se atrasado */}
+        {(() => {
+          const today = new Date().toISOString().split("T")[0];
+          const isStartReady = !!startDate && startDate < today;
+          const isDueOverdue = !!dueDate && dueDate < today && task?.status === "PENDENTE";
+          return (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">
+                  <CalendarDays size={11} strokeWidth={1.5} />
+                  Inicio
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  onBlur={() => syncMeta({ startDate })}
+                  className={`w-full rounded-xl border px-3 py-2.5 text-xs font-semibold outline-none focus:border-indigo-400 dark:border-white/[0.06] ${
+                    isStartReady
+                      ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:border-emerald-500/60 dark:bg-emerald-500/10 dark:text-emerald-400"
+                      : "border-slate-200/60 bg-slate-50 text-slate-700 dark:bg-zinc-800 dark:text-zinc-300"
+                  }`}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">
+                  <CalendarDays size={11} strokeWidth={1.5} />
+                  Entrega
+                </label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  onBlur={() => syncMeta({ dueDate })}
+                  className={`w-full rounded-xl border px-3 py-2.5 text-xs font-semibold outline-none focus:border-indigo-400 dark:border-white/[0.06] ${
+                    isDueOverdue
+                      ? "border-red-400 bg-red-50 text-red-700 dark:border-red-500/60 dark:bg-red-500/10 dark:text-red-400"
+                      : "border-slate-200/60 bg-slate-50 text-slate-700 dark:bg-zinc-800 dark:text-zinc-300"
+                  }`}
+                />
+              </div>
+            </div>
+          );
+        })()}
 
-        {/* Reminder */}
-        <div className="rounded-xl border border-slate-200/60 bg-slate-50/50 p-4 dark:border-white/[0.04] dark:bg-zinc-800/30">
-          <label className="mb-3 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-500 dark:text-blue-400">
-            <Bell size={11} strokeWidth={1.5} />
-            Lembrete
-          </label>
+        {/* Reminder — estado unificado; persiste ao sair do bloco ou fechar */}
+        <div
+          className="relative z-10 rounded-xl border border-slate-200/60 bg-slate-50/50 p-4 dark:border-white/[0.04] dark:bg-zinc-800/30"
+          onBlur={persistReminder}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <label className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-500 dark:text-blue-400">
+              <Bell size={11} strokeWidth={1.5} />
+              Lembrete
+            </label>
+            <button
+              type="button"
+              onClick={async (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (!task) return;
+                await api.updateTask(task.id, { reminder_at: "" });
+                setReminder({ date: "", time: "" });
+                onRefresh();
+              }}
+              className="flex items-center gap-1 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-zinc-800 dark:hover:text-red-400"
+              title="Remover lembrete"
+            >
+              <Trash2 size={12} strokeWidth={1.5} />
+            </button>
+          </div>
+          {reminderExpiredFeedback && (
+            <p className="mb-2 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+              Lembrete expirado, removido.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <input
               type="date"
-              value={reminderDate}
-              onChange={(e) => setReminderDate(e.target.value)}
-              onBlur={() => syncMeta({ reminderDate })}
+              value={reminder.date}
+              onChange={(e) =>
+                setReminder((prev) => ({ ...prev, date: e.target.value }))
+              }
               className="w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
             />
             <Time24Input
-              value={reminderTime}
-              onChange={(v) => setReminderTime(v)}
-              onBlur={() => syncMeta({ reminderTime })}
+              value={reminder.time}
+              onChange={(v) =>
+                setReminder((prev) => ({ ...prev, time: v }))
+              }
               className="w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
             />
           </div>

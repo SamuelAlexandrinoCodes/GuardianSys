@@ -22,11 +22,13 @@
 }
 
 /* Ocultar scrollbar mantendo scroll */
-.scrollbar-none {
+.scrollbar-none,
+.scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-.scrollbar-none::-webkit-scrollbar {
+.scrollbar-none::-webkit-scrollbar,
+.scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
 
@@ -73,4 +75,17 @@ input[type="number"] {
 /* Transição suave no tema */
 html {
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Context Menu — tokens para legibilidade (modo escuro por padrão) */
+:root {
+  --menu-bg: 24 24 27; /* zinc-900 */
+  --menu-text: 244 244 245; /* zinc-100 */
+  --menu-hover: 99 102 241; /* indigo-500 */
+}
+/* Modo claro (preparado para futura ativação) */
+[data-menu-theme="light"] {
+  --menu-bg: 255 255 255;
+  --menu-text: 24 24 27;
+  --menu-hover: 129 140 248; /* indigo-400 */
 }
