@@ -227,8 +227,8 @@ export function TaskSideSheet({ task, onClose, onRefresh, onColorChange }: TaskS
                 onClick={async (e) => {
                   e.stopPropagation();
                   const currentColor = task?.color ?? color;
-                  const newColor = currentColor === c.value ? "" : c.value;
-                  setColor(newColor || null);
+                  const newColor = currentColor === c.value ? null : c.value;
+                  setColor(newColor ?? null);
                   if (onColorChange && task) {
                     onColorChange(task.id, newColor);
                   } else if (task) {
@@ -248,9 +248,9 @@ export function TaskSideSheet({ task, onClose, onRefresh, onColorChange }: TaskS
                 e.stopPropagation();
                 setColor(null);
                 if (onColorChange && task) {
-                  onColorChange(task.id, "");
+                  onColorChange(task.id, null);
                 } else if (task) {
-                  await api.updateTask(task.id, { color: "" });
+                  await api.updateTask(task.id, { color: null });
                   onRefresh();
                 }
               }}

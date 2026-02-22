@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
+  rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
@@ -124,18 +124,9 @@ function SortableDroppableBubble({
   onClick: () => void;
   onDelete?: () => void;
 }) {
-  const { attributes, listeners, setNodeRef: setSortableRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
     id: `bubble-${id}`,
   });
-  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: `bubble-${id}` });
-
-  const setRefs = useCallback(
-    (el: HTMLDivElement | null) => {
-      setSortableRef(el);
-      setDroppableRef(el);
-    },
-    [setSortableRef, setDroppableRef]
-  );
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -143,7 +134,7 @@ function SortableDroppableBubble({
   };
   return (
     <div
-      ref={setRefs}
+      ref={setNodeRef}
       data-no-grab-scroll
       style={style}
       {...attributes}
@@ -863,7 +854,7 @@ export function TaskBoard({
 
   const handleColorChange = useCallback(
     async (taskId: number, color: string | null) => {
-      await api.updateTask(taskId, { color: color || "" });
+      await api.updateTask(taskId, { color: color });
       onRefresh();
     },
     [onRefresh]
@@ -1018,7 +1009,7 @@ export function TaskBoard({
     <>
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={rectIntersection}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
@@ -2165,7 +2156,7 @@ function TaskRow({
                     key={c.value}
                     onClick={async (e) => {
                       e.stopPropagation();
-                      const newColor = task.color === c.value ? "" : c.value;
+                      const newColor = task.color === c.value ? null : c.value;
                       await onColorChange(newColor);
                       setColorPopoverOpen(false);
                     }}
@@ -2179,7 +2170,7 @@ function TaskRow({
                 <button
                   onClick={async (e) => {
                     e.stopPropagation();
-                    await onColorChange("");
+                    await onColorChange(null);
                     setColorPopoverOpen(false);
                   }}
                   className="flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-slate-300 text-[8px] text-slate-400 transition-transform hover:scale-125 dark:border-zinc-600 dark:text-zinc-600"
