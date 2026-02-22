@@ -59,6 +59,17 @@
   background-color: white;
 }
 
+/* Esconder spin buttons de inputs numéricos e time */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* Transição suave no tema */
 html {
   transition: background-color 0.3s ease, color 0.3s ease;

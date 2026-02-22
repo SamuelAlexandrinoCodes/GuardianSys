@@ -178,11 +178,11 @@ def get_administrativo(tab: str = "tarefas"):
         today = date.today()
 
         # --- Tarefas ---
+        # TODAS as tarefas pendentes aparecem na lista (start_date não filtra; Dashboard usa depois)
         tasks_pending = session.exec(
             select(Task).where(
                 Task.type == "TAREFA",
                 Task.status == "PENDENTE",
-                or_(Task.start_date.is_(None), Task.start_date <= today)
             ).order_by(Task.order_index.asc(), Task.due_date.asc().nullslast())
         ).all()
 

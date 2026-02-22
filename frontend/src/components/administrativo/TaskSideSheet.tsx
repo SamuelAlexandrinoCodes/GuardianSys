@@ -12,6 +12,7 @@ import {
 import type { Task, TaskStep } from "../../types";
 import { api } from "../../lib/api";
 import { SideSheet } from "../ui/SideSheet";
+import { Time24Input } from "../ui/Time24Input";
 
 interface TaskSideSheetProps {
   task: Task | null;
@@ -284,12 +285,11 @@ export function TaskSideSheet({ task, onClose, onRefresh, onColorChange }: TaskS
               onBlur={() => syncMeta({ reminderDate })}
               className="w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
             />
-            <input
-              type="time"
+            <Time24Input
               value={reminderTime}
-              onChange={(e) => setReminderTime(e.target.value)}
+              onChange={(v) => setReminderTime(v)}
               onBlur={() => syncMeta({ reminderTime })}
-              className="w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
+              className="w-full rounded-lg border border-slate-200/60 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
             />
           </div>
         </div>
