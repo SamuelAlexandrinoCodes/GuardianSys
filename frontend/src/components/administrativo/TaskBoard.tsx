@@ -1,5 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useLayoutEffect, forwardRef } from "react";
-import { createPortal } from "react-dom";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DndContext,
@@ -8,72 +7,107 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  useDroppable,
 } from "@dnd-kit/core";
+import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import type { DragEndEvent } from "@dnd-kit/core";
 import {
   SortableContext,
   verticalListSortingStrategy,
-  horizontalListSortingStrategy,
   arrayMove,
-  useSortable,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import * as ColorPopover from "@radix-ui/react-popover";
-import { pt as chronoPt } from "chrono-node";
 import {
   Plus,
-  Check,
   ChevronDown,
   ChevronUp,
-  ChevronRight,
-  Trash2,
+  History,
+  Sparkles,
   CalendarDays,
   Bell,
   Repeat,
-  History,
-  Sparkles,
-  Palette,
-  X,
-  Search,
   Calendar,
-  Hash,
-  CircleSlash,
   Clock,
   Sun,
   Zap,
-  Star,
-  LogIn,
+  Archive,
+  Trash2,
 } from "lucide-react";
-import * as ContextMenu from "@radix-ui/react-context-menu";
 import type { Task, TaskStep } from "../../types";
 import { api } from "../../lib/api";
 import { TaskSideSheet } from "./TaskSideSheet";
 import { MiniCalendar } from "../ui/MiniCalendar";
 import { Time24Input } from "../ui/Time24Input";
+import { BubbleRow } from "./BubbleRow";
+import { TaskRow } from "./TaskRow";
+import { HistoryOverlay, CompletedRow } from "./HistoryOverlay";
+import {
+  colorHexMap,
+  parseSmartInput,
+  isReminderInPast,
+  emptyMeta,
+  type QuickMeta,
+  type TaskFilterValue,
+  loadBubbleOrder,
+  BUBBLE_ORDER_KEY,
+  repeatOptions,
+  pad2,
+} from "./taskHelpers";
 
 /* ========================================================================== */
-/* Constants                                                                  */
+/* DragOverlayTask â€” Coreografia Pixar: tamanho primeiro, estilo depois       */
 /* ========================================================================== */
 
-const colorHexMap: Record<string, string> = {
-  "border-l-red-500": "#ef4444",
-  "border-l-orange-500": "#f97316",
-  "border-l-emerald-500": "#10b981",
-  "border-l-blue-500": "#3b82f6",
-  "border-l-purple-500": "#a855f7",
-};
+function DragOverlayTask({
+  task,
+  isOverBubbleZone,
+  colorHexMap,
+}: {
+  task: Task;
+  isOverBubbleZone: boolean;
+  colorHexMap: Record<string, string>;
+}) {
+  const firstWord = task.title.trim().split(/\s+/)[0] || task.title;
+  const pillLabel = firstWord ? `${firstWord}...` : "Mover";
 
-const colorOptions = [
-  { value: "border-l-red-500", bg: "bg-red-500" },
-  { value: "border-l-orange-500", bg: "bg-orange-500" },
-  { value: "border-l-emerald-500", bg: "bg-emerald-500" },
-  { value: "border-l-blue-500", bg: "bg-blue-500" },
-  { value: "border-l-purple-500", bg: "bg-purple-500" },
-];
+  return (
+    // [DEBUG] motion.div substituído por div estática para isolar comportamento do DnD
+    <div className="flex items-center justify-center pointer-events-none" style={{ width: 140, height: 40 }}>
+      <div
+        className={`overflow-hidden shadow-2xl pointer-events-none ${
+          isOverBubbleZone
+            ? "rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center"
+            : "rounded-2xl border border-slate-200/60 bg-white dark:border-white/[0.06] dark:bg-zinc-900"
+        }`}
+        style={{
+          width: isOverBubbleZone ? 140 : 400,
+          height: isOverBubbleZone ? 32 : "auto",
+          opacity: 0.95,
+          borderLeftWidth: isOverBubbleZone ? 0 : 5,
+          borderLeftColor: !isOverBubbleZone && task.color ? (colorHexMap[task.color] ?? "transparent") : "transparent",
+        }}
+      >
+        {isOverBubbleZone ? (
+          <div className="flex w-full items-center justify-center gap-1.5 px-3 text-zinc-300">
+            <Archive size={14} strokeWidth={2.5} className="shrink-0" />
+            <span className="truncate text-[11px] font-bold tracking-widest uppercase">
+              {pillLabel}
+            </span>
+          </div>
+        ) : (
+          <div className="flex w-[400px] items-center gap-3 px-5 py-4">
+            <div className="h-[18px] w-[18px] shrink-0 rounded-full border-[1.5px] border-slate-300 dark:border-zinc-600" />
+            <p className="truncate text-[15px] font-semibold leading-snug tracking-tight text-slate-900 dark:text-zinc-100">
+              {task.title}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /* ========================================================================== */
-/* Quick Action Button + Tooltip — estático, ícone centralizado                */
+/* StaticActionButton â€” Quick Add toolbar                                     */
 /* ========================================================================== */
 
 function StaticActionButton({
@@ -108,358 +142,12 @@ function StaticActionButton({
 }
 
 /* ========================================================================== */
-/* BubbleRow — filtros arrastáveis (Meu Dia, Importante, etc) — DnD invisível  */
+/* Props (TaskFilterValue re-exported for AdministrativoPage)                 */
 /* ========================================================================== */
 
-function SortableDroppableBubble({
-  id,
-  label,
-  isActive,
-  onClick,
-  onDelete,
-}: {
-  id: string;
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-  onDelete?: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
-    id: `bubble-${id}`,
-  });
+export type { TaskFilterId, TaskFilterValue } from "./taskHelpers";
 
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-  return (
-    <div
-      ref={setNodeRef}
-      data-no-grab-scroll
-      style={style}
-      {...attributes}
-      {...listeners}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      className={`p-1 -m-1 flex shrink-0 cursor-grab active:cursor-grabbing select-none items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
-        isActive
-          ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/30 dark:bg-indigo-500"
-          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
-      } ${isDragging ? "opacity-80 shadow-lg ring-2 ring-indigo-400/50" : ""} ${
-        isOver
-          ? "scale-110 ring-2 ring-blue-400 shadow-[0_0_20px_rgba(96,165,250,0.8)] bg-blue-500/20 text-blue-400 z-50 dark:shadow-[0_0_20px_rgba(96,165,250,0.6)]"
-          : ""
-      }`}
-    >
-      <span className="min-w-0 truncate">{label}</span>
-      {onDelete && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="-mr-1 rounded p-0.5 opacity-70 hover:opacity-100"
-          aria-label="Remover lista"
-        >
-          <X size={10} strokeWidth={2} />
-        </button>
-      )}
-    </div>
-  );
-}
-
-function BubbleRow({
-  bubbleOrder,
-  onBubbleOrderChange,
-  taskFilter,
-  onTaskFilterChange,
-  lists,
-  onListsChange,
-  onDeleteListRequest,
-}: {
-  bubbleOrder: string[];
-  onBubbleOrderChange: (order: string[]) => void;
-  taskFilter: TaskFilterValue;
-  onTaskFilterChange: (filter: TaskFilterValue) => void;
-  lists: { id: number; name: string }[];
-  onListsChange: (lists: { id: number; name: string }[]) => void;
-  onDeleteListRequest: (listId: number) => void;
-}) {
-  const [creatingNew, setCreatingNew] = useState(false);
-  const [newListName, setNewListName] = useState("");
-  const newInputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const grabState = useRef({ isGrabbing: false, startX: 0, startScrollLeft: 0 });
-
-  const handleGrabStart = useCallback((e: React.MouseEvent) => {
-    if (e.target instanceof Element && (e.target.closest("[data-no-grab-scroll]") || e.target.closest("button"))) return;
-    if (!scrollRef.current) return;
-    grabState.current = { isGrabbing: true, startX: e.clientX, startScrollLeft: scrollRef.current.scrollLeft };
-    document.body.style.cursor = "grabbing";
-    document.body.style.userSelect = "none";
-    const onMove = (ev: MouseEvent) => {
-      const state = grabState.current;
-      if (!state.isGrabbing || !scrollRef.current) return;
-      scrollRef.current.scrollLeft = state.startScrollLeft - (ev.clientX - state.startX);
-    };
-    const onEnd = () => {
-      grabState.current.isGrabbing = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onEnd);
-      document.removeEventListener("mouseleave", onEnd);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onEnd);
-    document.addEventListener("mouseleave", onEnd);
-  }, []);
-
-  const bubbleItems = bubbleOrder
-    .filter((id) => {
-      if (id.startsWith("list:")) {
-        const listId = parseInt(id.split(":")[1] || "0", 10);
-        return lists.some((l) => l.id === listId);
-      }
-      return DEFAULT_BUBBLES.some((b) => b.id === id);
-    })
-    .map((id) => ({
-      id,
-      label: id.startsWith("list:")
-        ? lists.find((l) => l.id === parseInt(id.split(":")[1] || "0", 10))?.name ?? "Lista"
-        : DEFAULT_BUBBLES.find((b) => b.id === id as TaskFilterId)?.label ?? id,
-    }));
-
-  const handleCreateList = useCallback(async () => {
-    const name = newListName.trim() || "Nova Lista";
-    setCreatingNew(false);
-    setNewListName("");
-    try {
-      const created = await api.createTaskList(name);
-      onListsChange([...lists, created]);
-      onBubbleOrderChange([...bubbleOrder, `list:${created.id}`]);
-      onTaskFilterChange(`list:${created.id}`);
-    } catch (e) {
-      console.error("Erro ao criar lista:", e);
-    }
-  }, [newListName, lists, bubbleOrder, onListsChange, onBubbleOrderChange, onTaskFilterChange]);
-
-  const handleDeleteListClick = useCallback(
-    (listId: number) => {
-      onDeleteListRequest(listId);
-    },
-    [onDeleteListRequest]
-  );
-
-  useEffect(() => {
-    if (creatingNew) newInputRef.current?.focus();
-  }, [creatingNew]);
-
-  const { setNodeRef: setZoneRef } = useDroppable({ id: "drop-bubble-zone" });
-
-  return (
-    <div
-      ref={setZoneRef}
-      onMouseDown={handleGrabStart}
-      className="mt-3 flex w-full cursor-grab items-center gap-2 rounded-3xl border border-white/10 bg-white/5 px-3 py-2 active:cursor-grabbing dark:border-white/[0.06] dark:bg-white/[0.03]"
-    >
-      <div
-        ref={scrollRef}
-        className="flex min-w-0 flex-1 flex-nowrap gap-2 overflow-x-auto scrollbar-hide"
-        style={{
-          maskImage: "linear-gradient(to right, black 90%, transparent 100%)",
-          WebkitMaskImage: "linear-gradient(to right, black 90%, transparent 100%)",
-        }}
-      >
-            <SortableContext
-              items={bubbleItems.map((b) => `bubble-${b.id}`)}
-              strategy={horizontalListSortingStrategy}
-            >
-              {bubbleItems.map(({ id, label }) => (
-                <SortableDroppableBubble
-                  key={id}
-                  id={id}
-                  label={label}
-                  isActive={taskFilter === id}
-                  onClick={() => onTaskFilterChange(id as TaskFilterValue)}
-                  onDelete={id.startsWith("list:") ? () => handleDeleteListClick(parseInt(id.split(":")[1] || "0", 10)) : undefined}
-                />
-              ))}
-            </SortableContext>
-      </div>
-      {creatingNew ? (
-        <div
-          data-no-grab-scroll
-          className="flex shrink-0 items-center gap-1 rounded-full border border-dashed border-slate-300/80 bg-transparent px-3 py-1 dark:border-zinc-600/80"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <input
-            ref={newInputRef}
-            value={newListName}
-            onChange={(e) => setNewListName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCreateList();
-              if (e.key === "Escape") {
-                setCreatingNew(false);
-                setNewListName("");
-              }
-            }}
-            onBlur={() => {
-              if (newListName.trim()) handleCreateList();
-              else {
-                setCreatingNew(false);
-                setNewListName("");
-              }
-            }}
-            placeholder="Nome da lista"
-            className="w-28 min-w-0 bg-transparent text-xs font-semibold outline-none placeholder:text-slate-400 dark:text-zinc-100 dark:placeholder:text-zinc-500"
-            data-no-dnd="true"
-          />
-        </div>
-      ) : (
-        <button
-          type="button"
-          data-no-grab-scroll
-          onClick={() => setCreatingNew(true)}
-          className="flex shrink-0 items-center gap-1 rounded-full border border-dashed border-slate-300/80 bg-transparent px-3 py-1.5 text-xs font-semibold text-slate-500 transition-colors hover:border-indigo-400 hover:text-indigo-600 dark:border-zinc-600/80 dark:text-zinc-500 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
-        >
-          <Plus size={12} strokeWidth={2} />
-          Lista
-        </button>
-      )}
-    </div>
-  );
-}
-
-const repeatOptions: { value: string; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }> }[] = [
-  { value: "NONE", label: "Não repete", icon: CircleSlash },
-  { value: "DAILY", label: "Diariamente", icon: Repeat },
-  { value: "WEEKLY", label: "Semanalmente", icon: Calendar },
-  { value: "MONTHLY", label: "Mensalmente", icon: CalendarDays },
-  { value: "CUSTOM", label: "A cada X dias", icon: Hash },
-];
-
-/* ========================================================================== */
-/* Smart Reminder Parser (chrono-node + Híbrido)                              */
-/* ========================================================================== */
-
-const pad2 = (n: number) => String(n).padStart(2, "0");
-
-/** Retorna true se o DateTime (date YYYY-MM-DD + time HH:mm) for anterior ou igual a agora. */
-function isReminderInPast(date: string, time: string): boolean {
-  if (!date || !time || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{1,2}:\d{1,2}$/.test(time)) return false;
-  const dt = new Date(`${date}T${time}:00`);
-  return !isNaN(dt.getTime()) && dt.getTime() <= Date.now();
-}
-
-function fmtLocal(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-
-function parseSmartInput(raw: string): {
-  title: string;
-  reminderAt: string | null;
-  dueDate: string | null;
-} {
-  const result = { title: raw, reminderAt: null as string | null, dueDate: null as string | null };
-
-  // 1. Lembrete Explícito (Corta o texto)
-  const reminderRegex = /\s*(?:lembrete|me lembre|lembrar)\s+(.+)$/i;
-  const reminderMatch = raw.match(reminderRegex);
-
-  if (reminderMatch) {
-    result.title = raw.slice(0, reminderMatch.index).trim();
-    const temporalStr = reminderMatch[1]
-      .replace(/\bmin\b/gi, "minutos")
-      .replace(/\bhr?s?\b/gi, "horas");
-
-    // Lógica cravada de alta precisão para "em X minutos/horas"
-    const relativeMatch = temporalStr.match(/^(?:em\s+|daqui a\s+)?(\d+)\s*(minuto|minutos|min|m|hora|horas|h|hr)$/i);
-    if (relativeMatch) {
-      const amount = parseInt(relativeMatch[1], 10);
-      const unit = relativeMatch[2].toLowerCase();
-      const d = new Date();
-      if (unit.startsWith("h")) d.setHours(d.getHours() + amount);
-      else d.setMinutes(d.getMinutes() + amount);
-      result.reminderAt = fmtLocal(d);
-    } else {
-      const parsed = chronoPt.parseDate(temporalStr, new Date(), { forwardDate: true });
-      if (parsed) result.reminderAt = fmtLocal(parsed);
-    }
-  } else {
-    // 2. Data Comum (Não corta o texto, apenas detecta para due_date)
-    const parsedResults = chronoPt.parse(raw, new Date(), { forwardDate: true });
-    if (parsedResults.length > 0) {
-      result.dueDate = fmtLocal(parsedResults[0].start.date());
-    }
-  }
-
-  return result;
-}
-
-/* ========================================================================== */
-/* Quick Action Meta                                                          */
-/* ========================================================================== */
-
-interface QuickMeta {
-  startDate: string;
-  dueDate: string;
-  reminderDate: string;
-  reminderTime: string;
-  repeat: string;
-  repeatDays: number | "";
-}
-
-const emptyMeta: QuickMeta = {
-  startDate: "",
-  dueDate: "",
-  reminderDate: "",
-  reminderTime: "",
-  repeat: "NONE",
-  repeatDays: "",
-};
-
-/* ========================================================================== */
-/* Props                                                                      */
-/* ========================================================================== */
-
-export type TaskFilterId = "meu_dia" | "importante" | "planejado" | "geral";
-
-export type TaskFilterValue = TaskFilterId | `list:${number}`;
-
-const BUBBLE_ORDER_KEY = "guardian-task-bubble-order";
-
-const DEFAULT_BUBBLES: { id: TaskFilterId; label: string }[] = [
-  { id: "meu_dia", label: "Meu Dia" },
-  { id: "importante", label: "Importante" },
-  { id: "planejado", label: "Atribuído a mim" },
-  { id: "geral", label: "Geral" },
-];
-
-function loadBubbleOrder(lists: { id: number }[]): string[] {
-  try {
-    const s = localStorage.getItem(BUBBLE_ORDER_KEY);
-    if (s) {
-      const parsed = JSON.parse(s) as string[];
-      const defaultIds = DEFAULT_BUBBLES.map((b) => b.id);
-      const listIds = lists.map((l) => `list:${l.id}`);
-      const valid = parsed.filter(
-        (id) =>
-          defaultIds.includes(id as TaskFilterId) ||
-          (id.startsWith("list:") && listIds.includes(id))
-      );
-      const missingDefaults = defaultIds.filter((d) => !valid.includes(d));
-      const missingLists = listIds.filter((l) => !valid.includes(l));
-      return [...valid, ...missingDefaults, ...missingLists];
-    }
-  } catch { /* localStorage inválido */ }
-  return [...DEFAULT_BUBBLES.map((b) => b.id), ...lists.map((l) => `list:${l.id}`)];
-}
-
-interface TaskBoardProps {
+export interface TaskBoardProps {
   pending: Task[];
   completed: Task[];
   taskFilter: TaskFilterValue;
@@ -520,7 +208,7 @@ export function TaskBoard({
     localStorage.setItem(BUBBLE_ORDER_KEY, JSON.stringify(order));
   }, []);
 
-  // --- MÁGICA EM TEMPO REAL (O Erro vermelho foi resolvido aqui) ---
+  // --- MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚ÂGICA EM TEMPO REAL (O Erro vermelho foi resolvido aqui) ---
   const smartParsed = quickInput.trim() ? parseSmartInput(quickInput) : { title: "", reminderAt: null, dueDate: null };
   const hasSmartReminder = !!smartParsed.reminderAt;
   const hasSmartDate = !!smartParsed.dueDate && !hasSmartReminder;
@@ -558,7 +246,7 @@ export function TaskBoard({
     return () => window.removeEventListener("reminder-open-task", handler as EventListener);
   }, []);
 
-  // Atualizar ao montar (quando o usuário abre a aba de tarefas)
+  // Atualizar ao montar (quando o usuÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡rio abre a aba de tarefas)
   useEffect(() => {
     onRefresh();
   }, [onRefresh]);
@@ -576,7 +264,7 @@ export function TaskBoard({
     return () => window.removeEventListener("reminder-updated", handler);
   }, [onRefresh]);
 
-  // Atualizar lista quando notificação de lembrete for disparada (ícone some do card)
+  // Atualizar lista quando notificaÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o de lembrete for disparada (ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­cone some do card)
   useEffect(() => {
     const handler = () => onRefresh();
     window.addEventListener("reminder-triggered", handler);
@@ -595,7 +283,7 @@ export function TaskBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- apenas reminderDate/Time
   }, [quickMeta.reminderDate, quickMeta.reminderTime]);
 
-  // Data de início: auto-selecionar hoje ao abrir o popover
+  // Data de inÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­cio: auto-selecionar hoje ao abrir o popover
   useEffect(() => {
     if (activePopover === "start") {
       setQuickMeta((prev) => {
@@ -620,8 +308,8 @@ export function TaskBoard({
     const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" }).replace(".", "");
     return [
       { id: "today" as const, label: "Hoje", date: todayStr, sub: fmt(now) },
-      { id: "tomorrow" as const, label: "Amanhã", date: tomorrowStr, sub: fmt(tomorrow) },
-      { id: "nextweek" as const, label: "Próxima Semana", date: nextMonStr, sub: fmt(nextMon) },
+      { id: "tomorrow" as const, label: "AmanhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£", date: tomorrowStr, sub: fmt(tomorrow) },
+      { id: "nextweek" as const, label: "PrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³xima Semana", date: nextMonStr, sub: fmt(nextMon) },
     ];
   })();
 
@@ -645,8 +333,8 @@ export function TaskBoard({
     const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
     return [
       { id: "later" as const, label: "Mais tarde hoje", sub: laterTime, icon: Clock, date: todayStr, time: laterTime },
-      { id: "tomorrow" as const, label: "Amanhã", sub: `${fmt(tomorrow)}, 09:00`, icon: Sun, date: tomorrowStr, time: "09:00" },
-      { id: "nextweek" as const, label: "Próxima semana", sub: `${fmt(nextMon)}, 09:00`, icon: Calendar, date: nextMonStr, time: "09:00" },
+      { id: "tomorrow" as const, label: "AmanhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£", sub: `${fmt(tomorrow)}, 09:00`, icon: Sun, date: tomorrowStr, time: "09:00" },
+      { id: "nextweek" as const, label: "PrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³xima semana", sub: `${fmt(nextMon)}, 09:00`, icon: Calendar, date: nextMonStr, time: "09:00" },
     ];
   })();
 
@@ -655,7 +343,7 @@ export function TaskBoard({
     .sort((a, b) => {
       const aAt = a.completed_at || "";
       const bAt = b.completed_at || "";
-      return bAt.localeCompare(aAt); // Mais recente primeiro (cronológico inverso)
+      return bAt.localeCompare(aAt); // Mais recente primeiro (cronolÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³gico inverso)
     });
 
   /* ---- Handlers ---- */
@@ -667,13 +355,13 @@ export function TaskBoard({
     const { title, reminderAt, dueDate } = parseSmartInput(raw);
     const payload: Record<string, unknown> = { title: title || raw };
 
-    // Prioridade 1: Botões Manuais. Prioridade 2: Inteligência do texto.
+    // Prioridade 1: BotÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµes Manuais. Prioridade 2: InteligÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªncia do texto.
     if (quickMeta.dueDate) {
       payload.due_date = quickMeta.dueDate;
     } else if (dueDate) {
       payload.due_date = dueDate.split("T")[0];
     }
-    // Data de início: Bubble "Meu Dia" força hoje; "Atribuído a mim" força amanhã
+    // Data de inÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­cio: Bubble "Meu Dia" forÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§a hoje; "AtribuÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­do a mim" forÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§a amanhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£
     if (taskFilter === "meu_dia") {
       payload.start_date = quickMeta.startDate || todayStr;
     } else if (taskFilter === "planejado") {
@@ -686,7 +374,7 @@ export function TaskBoard({
     if (taskFilter === "importante") {
       payload.is_important = true;
     }
-    // Atribuído a Mim (planejado): atributo fixo — NUNCA removido por Meu Dia ou Importante
+    // AtribuÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­do a Mim (planejado): atributo fixo ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â NUNCA removido por Meu Dia ou Importante
     if (taskFilter === "planejado") {
       payload.is_assigned = true;
     }
@@ -727,11 +415,11 @@ export function TaskBoard({
       const payload: Record<string, unknown> = {};
       if (bubbleId === "meu_dia") {
         payload.start_date = todayStr;
-        // Não altera is_assigned — tarefa continua em "Atribuído a Mim" se já estava
+        // NÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o altera is_assigned ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â tarefa continua em "AtribuÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­do a Mim" se jÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ estava
       } else if (bubbleId === "importante") {
         payload.is_important = true;
       } else if (bubbleId === "geral") {
-        // Nenhuma ação — apenas troca a visão para Geral
+        // Nenhuma aÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â apenas troca a visÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o para Geral
       } else if (bubbleId.startsWith("list:")) {
         const listId = parseInt(bubbleId.split(":")[1] || "0", 10);
         payload.list_id = listId || null;
@@ -854,8 +542,8 @@ export function TaskBoard({
 
   const handleColorChange = useCallback(
     async (taskId: number, color: string | null) => {
-      // Força string vazia se for null para o Pydantic reconhecer a limpeza
-      await api.updateTask(taskId, { color: color === null ? "" : color });
+      // null/undefined -> "" para o backend Pydantic reconhecer a limpeza (null e ignorado)
+      await api.updateTask(taskId, { color: color ?? "" });
       onRefresh();
     },
     [onRefresh]
@@ -877,7 +565,7 @@ export function TaskBoard({
       if (!t) return;
       const todayStr = new Date().toISOString().split("T")[0];
       const isInMyDay = t.start_date && t.start_date <= todayStr;
-      // Apenas altera start_date; NÃO altera is_assigned — tarefa continua em "Atribuído a Mim"
+      // Apenas altera start_date; Nao altera is_assigned - tarefa continua em "Atribuido a Mim"
       await api.updateTask(taskId, { start_date: isInMyDay ? "" : todayStr });
       onRefresh();
     },
@@ -900,7 +588,7 @@ export function TaskBoard({
     [onRefresh]
   );
 
-  // Atalhos globais: Ctrl+T (Meu Dia), Ctrl+D (Concluir) — quando SideSheet aberta
+  // Atalhos globais: Ctrl+T (Meu Dia), Ctrl+D (Concluir) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â quando SideSheet aberta
   useEffect(() => {
     if (!activeTask) return;
     const handler = (e: KeyboardEvent) => {
@@ -1017,7 +705,7 @@ export function TaskBoard({
       >
       <div className="flex h-full flex-col">
         {/* ---------------------------------------------------------------- */}
-        {/* Quick-add input — hierarquia dupla (tooltips vs popovers)          */}
+        {/* Quick-add input ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â hierarquia dupla (tooltips vs popovers)          */}
         {/* ---------------------------------------------------------------- */}
         <div className="shrink-0 px-6 pt-6 pb-4">
           <ColorPopover.Root
@@ -1062,10 +750,10 @@ export function TaskBoard({
                     className="relative flex items-center gap-1"
                     onMouseLeave={() => setHoveredQuickAction(null)}
                   >
-              {/* Início */}
+              {/* InÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­cio */}
               <StaticActionButton
                 icon={Zap}
-                label="Data de Início"
+                label="Data de InÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­cio"
                 active={hasStartDate}
                 onHoverChange={(h) => h && setHoveredQuickAction("start")}
                 onClick={() => setActivePopover(activePopover === "start" ? null : "start")}
@@ -1099,10 +787,10 @@ export function TaskBoard({
                 className={hasRepeat ? "!bg-orange-50/80 !text-orange-600 dark:!bg-orange-500/10 dark:!text-orange-400" : ""}
               />
 
-              {/* Tooltip — acima dos botões (side: top), largura exata do buttonGroupRef */}
+              {/* Tooltip ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â acima dos botÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµes (side: top), largura exata do buttonGroupRef */}
               {hoveredQuickAction && (
                 <div className="absolute bottom-full left-0 right-0 z-10 mb-1 flex w-full items-center justify-center rounded-lg bg-slate-800 py-1.5 text-[11px] font-medium text-white shadow-lg dark:bg-zinc-700">
-                  {hoveredQuickAction === "start" && "Data de Início"}
+                  {hoveredQuickAction === "start" && "Data de InÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­cio"}
                   {hoveredQuickAction === "due" && "Data de Entrega"}
                   {hoveredQuickAction === "reminder" && "Lembrete"}
                   {hoveredQuickAction === "repeat" && "Repetir"}
@@ -1142,13 +830,13 @@ export function TaskBoard({
                 className="z-[9999] min-w-[200px] max-w-[320px] rounded-3xl border border-slate-200/40 bg-white/80 p-5 shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-white/[0.06] dark:bg-zinc-900/80 dark:shadow-none"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Início — Data de Início (padrão: hoje, sem botão Limpar) */}
+                {/* InÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­cio ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Data de InÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­cio (padrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o: hoje, sem botÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o Limpar) */}
                 {activePopover === "start" && (
                   <div className="space-y-3">
                     <div className="mb-2 flex items-center gap-2">
                       <Zap size={14} strokeWidth={1.5} className="text-indigo-500" />
                       <span className="text-xs font-bold tracking-tight text-slate-800 dark:text-zinc-200">
-                        Data de Início
+                        Data de InÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­cio
                       </span>
                     </div>
                     <MiniCalendar
@@ -1161,7 +849,7 @@ export function TaskBoard({
                   </div>
                 )}
 
-                {/* Entrega — presets primeiro; "Escolher data" revela MiniCalendar */}
+                {/* Entrega ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â presets primeiro; "Escolher data" revela MiniCalendar */}
                 {activePopover === "due" && (
                   <div className="space-y-3">
                     <div className="mb-3 flex items-center gap-2">
@@ -1233,7 +921,7 @@ export function TaskBoard({
                   </div>
                 )}
 
-                {/* Lembrete — presets primeiro; "Escolher data e hora" revela MiniCalendar + Horário */}
+                {/* Lembrete ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â presets primeiro; "Escolher data e hora" revela MiniCalendar + HorÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡rio */}
                 {activePopover === "reminder" && (
                   <div className="space-y-3">
                     {reminderExpiredFeedback && (
@@ -1323,7 +1011,7 @@ export function TaskBoard({
                         </div>
                         <div className="space-y-1" data-no-dnd="true">
                           <label className="block text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-zinc-500">
-                            Horário (24h)
+                            HorÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡rio (24h)
                           </label>
                           <Time24Input
                             value={quickMeta.reminderTime}
@@ -1422,7 +1110,7 @@ export function TaskBoard({
                         }
                         className="mt-3 text-[11px] font-semibold text-red-400 transition-colors hover:text-red-500"
                       >
-                        Limpar repetição
+                        Limpar repetiÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o
                       </button>
                     )}
                   </div>
@@ -1431,7 +1119,7 @@ export function TaskBoard({
             </ColorPopover.Portal>
           </ColorPopover.Root>
 
-          {/* Bubbles — filtros arrastáveis */}
+          {/* Bubbles ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â filtros arrastÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡veis */}
           <BubbleRow
             bubbleOrder={bubbleOrder}
             onBubbleOrderChange={saveBubbleOrder}
@@ -1444,7 +1132,7 @@ export function TaskBoard({
         </div>
 
         {/* ---------------------------------------------------------------- */}
-        {/* Pending tasks — sortable via press-to-drag                       */}
+        {/* Pending tasks ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â sortable via press-to-drag                       */}
         {/* ---------------------------------------------------------------- */}
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-none px-6 pb-2">
             <SortableContext
@@ -1562,51 +1250,27 @@ export function TaskBoard({
         </div>
       </div>
 
-      <DragOverlay>
+      <DragOverlay modifiers={[snapCenterToCursor]} style={{ pointerEvents: "none" }}>
         {activeDragId ? (() => {
-          const task = pending.find((t) => t.id === activeDragId);
+          const task = pending.find((t) => t.id === activeDragId) || completed.find((t) => t.id === activeDragId);
           if (!task) return null;
+
+          // Detecta se o cursor estÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ sobre a zona das Bubbles (pointerWithin garante detecÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o precisa)
           const isOverBubbleZone = dragOverId?.startsWith("bubble-") || dragOverId === "drop-bubble-zone";
+
+          // Primeira palavra + "..." para o estado pÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­lula
           return (
-            <motion.div
-              layout
-              initial={false}
-              animate={{
-                width: isOverBubbleZone ? 160 : "100%",
-                height: isOverBubbleZone ? 40 : "auto",
-                opacity: isOverBubbleZone ? 1 : 0.95,
-              }}
-              transition={{ duration: 0.25, ease: "easeInOut" }}
-              className={`overflow-hidden ${
-                isOverBubbleZone
-                  ? "rounded-full bg-blue-500 border-none shadow-[0_10px_40px_rgba(59,130,246,0.6)] flex items-center justify-center text-white"
-                  : "rounded-2xl border border-slate-200/60 bg-white shadow-2xl dark:border-white/[0.06] dark:bg-zinc-900"
-              }`}
-              style={{
-                borderLeftWidth: isOverBubbleZone ? 0 : 5,
-                borderLeftColor: !isOverBubbleZone && task.color ? (colorHexMap[task.color] ?? "transparent") : "transparent",
-              }}
-            >
-              {isOverBubbleZone ? (
-                <motion.div layout className="flex items-center gap-2 px-2 text-white">
-                  <LogIn size={16} strokeWidth={2.5} />
-                  <span className="text-xs font-bold tracking-widest uppercase">Mover Tarefa</span>
-                </motion.div>
-              ) : (
-                <motion.div layout className="flex items-center gap-3 px-5 py-4">
-                  <div className="h-[18px] w-[18px] shrink-0 rounded-full border-[1.5px] border-slate-300 dark:border-zinc-600" />
-                  <p className="truncate text-[15px] font-semibold leading-snug tracking-tight text-slate-900 dark:text-zinc-100">
-                    {task.title}
-                  </p>
-                </motion.div>
-              )}
-            </motion.div>
+            <DragOverlayTask
+              task={task}
+              isOverBubbleZone={isOverBubbleZone}
+              colorHexMap={colorHexMap}
+            />
           );
         })() : null}
       </DragOverlay>
       </DndContext>
 
-      {/* Modal: confirmar exclusão de tarefa */}
+      {/* Modal: confirmar exclusao de tarefa */}
       <AnimatePresence>
         {confirmDeleteTask && (
           <motion.div
@@ -1649,7 +1313,7 @@ export function TaskBoard({
         )}
       </AnimatePresence>
 
-      {/* Modal: confirmar exclusão de lista */}
+      {/* Modal: confirmar exclusao de lista */}
       <AnimatePresence>
         {confirmDeleteList && (
           <motion.div
@@ -1670,7 +1334,7 @@ export function TaskBoard({
                 Tem certeza que deseja excluir esta lista?
               </p>
               <p className="mb-6 text-center text-xs text-amber-600 dark:text-amber-500">
-                Atenção: excluir esta lista removerá permanentemente todas as tarefas contidas nela.
+                AtenÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o: excluir esta lista removerÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ permanentemente todas as tarefas contidas nela.
               </p>
               <div className="flex gap-3">
                 <button
@@ -1710,778 +1374,5 @@ export function TaskBoard({
         onDelete={handleDelete}
       />
     </>
-  );
-}
-
-/* ========================================================================== */
-/* TaskRow — sortable card (press-to-drag, no grip icon)                      */
-/* ========================================================================== */
-
-/* TooltipButton — tooltip via Portal (flutua sobre viewport, sem overflow) */
-const TooltipButton = forwardRef<
-  HTMLButtonElement,
-  { label: string; children: React.ReactNode; className?: string } & React.ButtonHTMLAttributes<HTMLButtonElement>
->(function TooltipButton({ label, children, className = "", ...props }, ref) {
-  const [hovered, setHovered] = useState(false);
-  const [rect, setRect] = useState<DOMRect | null>(null);
-  const innerRef = useRef<HTMLButtonElement | null>(null);
-
-  const setRefs = useCallback((el: HTMLButtonElement | null) => {
-    (innerRef as React.MutableRefObject<HTMLButtonElement | null>).current = el;
-    if (typeof ref === "function") ref(el);
-    else if (ref) (ref as React.MutableRefObject<HTMLButtonElement | null>).current = el;
-  }, [ref]);
-
-  const updateRect = useCallback(() => {
-    const el = innerRef.current;
-    if (el) setRect(el.getBoundingClientRect());
-  }, []);
-
-  useEffect(() => {
-    if (!hovered) return;
-    updateRect();
-  }, [hovered, updateRect]);
-
-  const handleMouseLeave = useCallback(() => {
-    setHovered(false);
-    setRect(null);
-  }, []);
-
-  const tooltipEl = hovered && rect && typeof document !== "undefined" ? createPortal(
-    <div
-      className="fixed z-[99999] pointer-events-none whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] font-medium text-white shadow-lg dark:bg-zinc-700"
-      style={{
-        left: rect.left + rect.width / 2,
-        top: rect.top - 6,
-        transform: "translate(-50%, -100%)",
-      }}
-    >
-      {label}
-    </div>,
-    document.body
-  ) : null;
-
-  return (
-    <>
-      <button
-        ref={setRefs}
-        type="button"
-        className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${className}`}
-        aria-label={label}
-        onMouseEnter={() => { setHovered(true); updateRect(); }}
-        onMouseLeave={handleMouseLeave}
-        {...props}
-      >
-        {children}
-      </button>
-      {tooltipEl}
-    </>
-  );
-});
-
-interface TaskRowProps {
-  task: Task;
-  onToggle: () => void;
-  onDelete: () => void;
-  onClick: () => void;
-  onTitleChange: (task: Task, newTitle: string) => void | Promise<void>;
-  onImportantToggle: () => void;
-  onMyDayAdd: () => void; // Toggle Meu Dia (hoje/null)
-  onSetStartDate: (date: string | null) => void;
-  onMoveToList: (listId: number | null) => void;
-  onAddStep: (task: Task, title: string) => void;
-  onToggleStep: (task: Task, step: TaskStep) => void;
-  onDeleteStep: (task: Task, stepId: number) => void;
-  onColorChange: (color: string | null) => void;
-  lists: { id: number; name: string }[];
-}
-
-function TaskRow({
-  task,
-  onToggle,
-  onDelete,
-  onClick,
-  onTitleChange,
-  onImportantToggle,
-  onMyDayAdd,
-  onSetStartDate,
-  onMoveToList,
-  onAddStep,
-  onToggleStep,
-  onDeleteStep,
-  onColorChange,
-  lists,
-}: TaskRowProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: task.id });
-
-  const [showStepInput, setShowStepInput] = useState(false);
-  const [stepInput, setStepInput] = useState("");
-  const [expanded, setExpanded] = useState(false);
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [colorPopoverOpen, setColorPopoverOpen] = useState(false);
-  const [editTitleValue, setEditTitleValue] = useState(task.title);
-  const [inputWidth, setInputWidth] = useState(20);
-  const sizerRef = useRef<HTMLSpanElement>(null);
-
-  useLayoutEffect(() => {
-    if (isEditingTitle && sizerRef.current) {
-      const w = sizerRef.current.scrollWidth;
-      setInputWidth(Math.max(20, w + 4));
-    }
-  }, [editTitleValue, isEditingTitle]);
-
-  const hasSteps = task.steps && task.steps.length > 0;
-
-  const startEditing = useCallback(() => {
-    setEditTitleValue(task.title);
-    setIsEditingTitle(true);
-  }, [task.title]);
-  const doneSteps = task.steps?.filter((s) => s.done).length || 0;
-
-  const sortableStyle: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    borderLeftWidth: 5,
-    borderLeftColor: task.color
-      ? colorHexMap[task.color] ?? "transparent"
-      : "transparent",
-  };
-
-  const todayStr = new Date().toISOString().split("T")[0];
-  const tomorrowStr = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
-  })();
-  const isInMyDay = task.start_date && task.start_date <= todayStr;
-
-  return (
-    <ContextMenu.Root>
-      <ContextMenu.Trigger asChild>
-    <div
-      ref={setNodeRef}
-      style={sortableStyle}
-      {...attributes}
-      {...listeners}
-      className={`group relative mb-1.5 overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm transition-shadow select-none dark:border-white/[0.06] dark:bg-zinc-900 hover:shadow-md ${
-        isDragging ? "opacity-50 shadow-lg" : ""
-      }`}
-    >
-      <div
-        className="relative flex items-start gap-2.5 px-4 py-2.5"
-        onClick={onClick}
-      >
-        {/* Checkbox */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle();
-          }}
-          className="mt-0.5 flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-slate-300 transition-colors hover:border-indigo-500 dark:border-zinc-600 dark:hover:border-indigo-400"
-        />
-
-        {/* Content */}
-        <div className="min-w-0 flex-1">
-          {/* Título: hitbox restrita ao texto; espaço vazio abre SideSheet */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-fit max-w-full"
-          >
-            {isEditingTitle ? (
-              <span className="relative inline-block">
-                <span
-                  ref={sizerRef}
-                  aria-hidden
-                  className="invisible absolute left-0 top-0 whitespace-pre text-[14px] font-semibold leading-snug tracking-tight"
-                  style={{ pointerEvents: "none" }}
-                >
-                  {editTitleValue || "\u00A0"}
-                </span>
-                <input
-                  type="text"
-                  value={editTitleValue}
-                  onChange={(e) => setEditTitleValue(e.target.value)}
-                  onBlur={() => {
-                    const trimmed = editTitleValue.trim();
-                    if (trimmed && trimmed !== task.title) {
-                      onTitleChange(task, trimmed);
-                    } else {
-                      setEditTitleValue(task.title);
-                    }
-                    setIsEditingTitle(false);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.currentTarget.blur();
-                    }
-                    if (e.key === "Escape") {
-                      setEditTitleValue(task.title);
-                      setIsEditingTitle(false);
-                      e.currentTarget.blur();
-                    }
-                  }}
-                  autoFocus
-                  style={{ width: inputWidth }}
-                  className="min-w-[2ch] bg-transparent text-[14px] font-semibold leading-snug tracking-tight text-slate-900 outline-none dark:text-zinc-100"
-                />
-              </span>
-            ) : (
-              <p
-                onClick={(e) => {
-                  e.stopPropagation();
-                  startEditing();
-                }}
-                className="cursor-text text-[14px] font-semibold leading-snug tracking-tight text-slate-900 dark:text-zinc-100"
-              >
-                {task.title}
-              </p>
-            )}
-          </div>
-
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            {task.due_date && (() => {
-              const today = new Date().toISOString().split("T")[0];
-              const isOverdue = task.status === "PENDENTE" && task.due_date < today;
-              return (
-                <span className={`flex items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wider ${
-                  isOverdue ? "text-red-500 dark:text-red-400" : "text-slate-400 dark:text-zinc-500"
-                }`}>
-                  <CalendarDays size={9} strokeWidth={1.5} />
-                  {new Date(task.due_date + "T00:00:00").toLocaleDateString(
-                    "pt-BR",
-                    { day: "2-digit", month: "short" }
-                  )}
-                  {isOverdue && <span className="font-bold">ATRASADO</span>}
-                </span>
-              );
-            })()}
-            {task.reminder_at && (() => {
-              const d = new Date(task.reminder_at);
-              const today = new Date();
-              const isToday = d.toDateString() === today.toDateString();
-              const timeStr = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false });
-              const label = isToday ? timeStr : `${d.getDate()} ${d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "").toUpperCase()}, ${timeStr}`;
-              return (
-                <span className="flex items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wider text-blue-400 dark:text-blue-500">
-                  <Bell size={9} strokeWidth={1.5} />
-                  {label}
-                </span>
-              );
-            })()}
-            {task.repeat && task.repeat !== "NONE" && (
-              <span className="flex items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wider text-orange-400 dark:text-orange-500">
-                <Repeat size={9} strokeWidth={1.5} />
-                {task.repeat === "DAILY"
-                  ? "Diario"
-                  : task.repeat === "WEEKLY"
-                    ? "Semanal"
-                    : task.repeat === "MONTHLY"
-                      ? "Mensal"
-                      : `${task.repeat_interval_days}d`}
-              </span>
-            )}
-            {hasSteps && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setExpanded(!expanded);
-                }}
-                className="flex items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-400 transition-colors hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-400"
-              >
-                {doneSteps}/{task.steps.length} passos
-                {expanded ? (
-                  <ChevronUp size={9} strokeWidth={2} />
-                ) : (
-                  <ChevronDown size={9} strokeWidth={2} />
-                )}
-              </button>
-            )}
-            {/* + Subtarefa / Nova subtarefa — mesma altura para evitar salto */}
-            <div className="flex min-h-[18px] items-center">
-              {!showStepInput ? (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowStepInput(true);
-                    setExpanded(true);
-                  }}
-                  className="flex h-[18px] items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 text-[9px] font-semibold uppercase tracking-wider text-slate-400 hover:text-indigo-500 dark:text-zinc-600 dark:hover:text-indigo-400"
-                >
-                  <Plus size={9} strokeWidth={2} />
-                  Subtarefa
-                </button>
-              ) : (
-                <input
-                  autoFocus
-                  type="text"
-                  value={stepInput}
-                  onChange={(e) => setStepInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    e.stopPropagation();
-                    if (e.key === "Enter" && stepInput.trim()) {
-                      onAddStep(task, stepInput.trim());
-                      setStepInput("");
-                      setShowStepInput(false);
-                    }
-                    if (e.key === "Escape") setShowStepInput(false);
-                  }}
-                  onBlur={() => setShowStepInput(false)}
-                  placeholder="Nova subtarefa..."
-                  className="h-[18px] min-w-[100px] max-w-[160px] border-b border-slate-200 bg-transparent px-0 py-0.5 text-[12px] font-medium leading-tight text-slate-700 outline-none placeholder:text-slate-300 dark:border-zinc-600 dark:text-zinc-300 dark:placeholder:text-zinc-500"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Subtasks — só a lista; + Subtarefa está na linha acima */}
-          <AnimatePresence>
-            {hasSteps && expanded && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="mt-2 space-y-0.5 overflow-hidden border-t border-slate-100/80 pt-2 dark:border-white/[0.04]"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {task.steps.map((step) => (
-                  <div
-                    key={step.id}
-                    className="group/step flex items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-slate-50 dark:hover:bg-zinc-800/50"
-                  >
-                    <button
-                      onClick={() => onToggleStep(task, step)}
-                      className={`flex h-3 w-3 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors ${
-                        step.done
-                          ? "border-indigo-500 bg-indigo-500 dark:border-indigo-400 dark:bg-indigo-400"
-                          : "border-slate-300 dark:border-zinc-600"
-                      }`}
-                    >
-                      {step.done && (
-                        <Check
-                          size={6}
-                          strokeWidth={3}
-                          className="text-white"
-                        />
-                      )}
-                    </button>
-                    <span
-                      className={`flex-1 text-[12px] font-medium leading-none transition-all ${
-                        step.done
-                          ? "text-slate-300 line-through dark:text-zinc-600"
-                          : "text-slate-600 dark:text-zinc-400"
-                      }`}
-                    >
-                      {step.title}
-                    </span>
-                    <button
-                      onClick={() => onDeleteStep(task, step.id)}
-                      className="text-slate-200 opacity-0 transition-opacity group-hover/step:opacity-100 hover:text-red-400 dark:text-zinc-700 dark:hover:text-red-400"
-                    >
-                      <Trash2 size={10} strokeWidth={1.5} />
-                    </button>
-                  </div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Cockpit: Estrela, Sol, Cor, Lixeira — à direita com tooltips */}
-        <div className="absolute right-3 top-2.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-          <TooltipButton
-            label={task.is_important ? "Remover destaque" : "Marcar como importante"}
-            onClick={(e) => {
-              e.stopPropagation();
-              onImportantToggle();
-            }}
-            className="text-slate-300 hover:bg-slate-100 hover:text-amber-500 dark:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-amber-400"
-          >
-            <Star
-              size={13}
-              strokeWidth={1.5}
-              className={task.is_important ? "fill-amber-400 text-amber-400" : ""}
-            />
-          </TooltipButton>
-          <TooltipButton
-            label={
-              (() => {
-                const today = new Date().toISOString().split("T")[0];
-                const isActive = task.start_date && task.start_date <= today;
-                return isActive ? "Remover do Meu Dia" : "Adicionar ao Meu Dia";
-              })()
-            }
-            onClick={(e) => {
-              e.stopPropagation();
-              onMyDayAdd();
-            }}
-            className={`hover:bg-slate-100 dark:hover:bg-zinc-800 ${
-              (() => {
-                const today = new Date().toISOString().split("T")[0];
-                const isActive = task.start_date && task.start_date <= today;
-                return isActive
-                  ? "text-orange-400 fill-orange-400 dark:text-orange-400 dark:fill-orange-400"
-                  : "text-slate-300 hover:text-orange-500 dark:text-zinc-600 dark:hover:text-orange-400";
-              })()
-            }`}
-          >
-            <Sun size={13} strokeWidth={1.5} />
-          </TooltipButton>
-          <ColorPopover.Root open={colorPopoverOpen} onOpenChange={setColorPopoverOpen}>
-            <ColorPopover.Trigger asChild>
-              <TooltipButton
-                label="Cor"
-                className="text-slate-300 hover:bg-slate-100 hover:text-slate-500 dark:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-400"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Palette size={13} strokeWidth={1.5} />
-              </TooltipButton>
-            </ColorPopover.Trigger>
-            <ColorPopover.Portal>
-              <ColorPopover.Content
-                side="bottom"
-                align="end"
-                sideOffset={4}
-                className="z-[9999] flex gap-1.5 rounded-xl border border-slate-200/60 bg-white p-2.5 shadow-lg dark:border-white/[0.08] dark:bg-zinc-900"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {colorOptions.map((c) => (
-                  <button
-                    key={c.value}
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      const newColor = task.color === c.value ? null : c.value;
-                      await onColorChange(newColor);
-                      setColorPopoverOpen(false);
-                    }}
-                    className={`h-5 w-5 rounded-full transition-transform hover:scale-125 ${c.bg} ${
-                      task.color === c.value
-                        ? "ring-2 ring-offset-1 ring-slate-400 dark:ring-offset-zinc-900 dark:ring-zinc-500"
-                        : ""
-                    }`}
-                  />
-                ))}
-                <button
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    await onColorChange(null);
-                    setColorPopoverOpen(false);
-                  }}
-                  className="flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-slate-300 text-[8px] text-slate-400 transition-transform hover:scale-125 dark:border-zinc-600 dark:text-zinc-600"
-                >
-                  &times;
-                </button>
-              </ColorPopover.Content>
-            </ColorPopover.Portal>
-          </ColorPopover.Root>
-          <TooltipButton
-            label="Excluir"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            className="text-slate-300 hover:bg-red-50 hover:text-red-400 dark:text-zinc-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-          >
-            <Trash2 size={13} strokeWidth={1.5} />
-          </TooltipButton>
-        </div>
-      </div>
-    </div>
-      </ContextMenu.Trigger>
-      <ContextMenu.Portal>
-        <ContextMenu.Content
-          className="z-[9999] min-w-[200px] rounded-xl border border-white/10 bg-zinc-900 py-1 shadow-xl"
-          style={{ background: "rgb(var(--menu-bg))", color: "rgb(var(--menu-text))" }}
-        >
-          <ContextMenu.Item
-            className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-100 outline-none hover:bg-indigo-500/30 hover:text-white data-[highlighted]:bg-indigo-500/30 data-[highlighted]:text-white"
-            onSelect={() => onMyDayAdd()}
-          >
-            <Sun size={14} strokeWidth={1.5} />
-            {isInMyDay ? "Remover do Meu Dia" : "Adicionar ao Meu Dia"}
-            <span className="ml-auto text-[10px] text-zinc-400">Ctrl+T</span>
-          </ContextMenu.Item>
-          <ContextMenu.Item
-            className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-100 outline-none hover:bg-indigo-500/30 hover:text-white data-[highlighted]:bg-indigo-500/30 data-[highlighted]:text-white"
-            onSelect={() => onImportantToggle()}
-          >
-            <Star size={14} strokeWidth={1.5} className={task.is_important ? "fill-amber-400 text-amber-400" : ""} />
-            {task.is_important ? "Remover destaque" : "Marcar como importante"}
-          </ContextMenu.Item>
-          <ContextMenu.Item
-            className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-100 outline-none hover:bg-indigo-500/30 hover:text-white data-[highlighted]:bg-indigo-500/30 data-[highlighted]:text-white"
-            onSelect={() => onToggle()}
-          >
-            <Check size={14} strokeWidth={1.5} />
-            Marcar como concluída
-            <span className="ml-auto text-[10px] text-zinc-400">Ctrl+D</span>
-          </ContextMenu.Item>
-          <ContextMenu.Separator className="my-1 h-px bg-zinc-700" />
-          <ContextMenu.Sub>
-            <ContextMenu.SubTrigger className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-100 outline-none hover:bg-indigo-500/30 hover:text-white data-[highlighted]:bg-indigo-500/30 data-[highlighted]:text-white data-[state=open]:bg-indigo-500/30 data-[state=open]:text-white">
-              <CalendarDays size={14} strokeWidth={1.5} />
-              Data de início
-              <ChevronRight size={12} className="ml-auto" />
-            </ContextMenu.SubTrigger>
-            <ContextMenu.Portal>
-              <ContextMenu.SubContent
-                className="z-[10000] min-w-[160px] rounded-xl border border-white/10 bg-zinc-900 py-1 shadow-xl"
-              >
-                <ContextMenu.Item
-                  className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-100 outline-none hover:bg-indigo-500/30 hover:text-white data-[highlighted]:bg-indigo-500/30 data-[highlighted]:text-white"
-                  onSelect={() => onSetStartDate(todayStr)}
-                >
-                  Hoje
-                </ContextMenu.Item>
-                <ContextMenu.Item
-                  className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-100 outline-none hover:bg-indigo-500/30 hover:text-white data-[highlighted]:bg-indigo-500/30 data-[highlighted]:text-white"
-                  onSelect={() => onSetStartDate(tomorrowStr)}
-                >
-                  Amanhã
-                </ContextMenu.Item>
-                <ContextMenu.Item
-                  className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-100 outline-none hover:bg-indigo-500/30 hover:text-white data-[highlighted]:bg-indigo-500/30 data-[highlighted]:text-white"
-                  onSelect={() => onSetStartDate(null)}
-                >
-                  Remover data
-                </ContextMenu.Item>
-                <ContextMenu.Separator className="my-1 h-px bg-zinc-700" />
-                <ContextMenu.Item
-                  className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-100 outline-none hover:bg-indigo-500/30 hover:text-white data-[highlighted]:bg-indigo-500/30 data-[highlighted]:text-white"
-                  onSelect={() => onClick()}
-                >
-                  Selecionar data...
-                </ContextMenu.Item>
-              </ContextMenu.SubContent>
-            </ContextMenu.Portal>
-          </ContextMenu.Sub>
-          {lists.length > 0 && (
-            <ContextMenu.Sub>
-              <ContextMenu.SubTrigger className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-100 outline-none hover:bg-indigo-500/30 hover:text-white data-[highlighted]:bg-indigo-500/30 data-[highlighted]:text-white data-[state=open]:bg-indigo-500/30 data-[state=open]:text-white">
-                <span>📂</span>
-                Mover tarefa para...
-                <ChevronRight size={12} className="ml-auto" />
-              </ContextMenu.SubTrigger>
-              <ContextMenu.Portal>
-                <ContextMenu.SubContent
-                  className="z-[10000] max-h-[240px] min-w-[160px] overflow-y-auto rounded-xl border border-white/10 bg-zinc-900 py-1 shadow-xl"
-                >
-                  {lists.map((l) => (
-                    <ContextMenu.Item
-                      key={l.id}
-                      className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-100 outline-none hover:bg-indigo-500/30 hover:text-white data-[highlighted]:bg-indigo-500/30 data-[highlighted]:text-white"
-                      onSelect={() => onMoveToList(l.id)}
-                    >
-                      {l.name}
-                    </ContextMenu.Item>
-                  ))}
-                </ContextMenu.SubContent>
-              </ContextMenu.Portal>
-            </ContextMenu.Sub>
-          )}
-          <ContextMenu.Separator className="my-1 h-px bg-zinc-700" />
-          <ContextMenu.Item
-            className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-red-400 outline-none hover:bg-red-500/20 hover:text-red-300 data-[highlighted]:bg-red-500/20 data-[highlighted]:text-red-300"
-            onSelect={() => onDelete()}
-          >
-            <Trash2 size={14} strokeWidth={1.5} />
-            Excluir tarefa
-          </ContextMenu.Item>
-        </ContextMenu.Content>
-      </ContextMenu.Portal>
-    </ContextMenu.Root>
-  );
-}
-
-/* ========================================================================== */
-/* CompletedRow                                                               */
-/* ========================================================================== */
-
-interface CompletedRowProps {
-  task: Task;
-  onToggle: () => void;
-  onDelete: () => void;
-}
-
-function CompletedRow({ task, onToggle, onDelete }: CompletedRowProps) {
-  const timeStr = task.completed_at
-    ? new Date(task.completed_at).toLocaleTimeString("pt-BR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "";
-
-  return (
-    <div className="group flex items-center gap-3.5 rounded-xl border border-slate-100/60 bg-slate-50/50 px-4 py-3 transition-colors dark:border-white/[0.04] dark:bg-zinc-800/30">
-      <button
-        onClick={onToggle}
-        className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-emerald-400 bg-emerald-400 transition-colors dark:border-emerald-500 dark:bg-emerald-500"
-      >
-        <Check size={10} strokeWidth={3} className="text-white" />
-      </button>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-medium text-slate-400 line-through dark:text-zinc-500">
-          {task.title}
-        </p>
-      </div>
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-500 dark:text-emerald-400">
-        {timeStr}
-      </span>
-      <button
-        onClick={onDelete}
-        className="text-slate-200 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400 dark:text-zinc-700 dark:hover:text-red-400"
-      >
-        <Trash2 size={13} strokeWidth={1.5} />
-      </button>
-    </div>
-  );
-}
-
-/* ========================================================================== */
-/* HistoryOverlay                                                             */
-/* ========================================================================== */
-
-function HistoryOverlay({
-  open,
-  onClose,
-  completed,
-  onToggle,
-  onDelete,
-}: {
-  open: boolean;
-  onClose: () => void;
-  completed: Task[];
-  onToggle: (task: Task) => void;
-  onDelete: (taskId: number) => void;
-}) {
-  const [search, setSearch] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
-
-  const filtered = completed.filter((t) => {
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase()))
-      return false;
-    if (
-      dateFilter &&
-      t.completed_at &&
-      !t.completed_at.startsWith(dateFilter)
-    )
-      return false;
-    if (dateFilter && !t.completed_at) return false;
-    return true;
-  });
-
-  const grouped = filtered.reduce<Record<string, Task[]>>((acc, task) => {
-    const dateKey = task.completed_at?.split("T")[0] || "Sem data";
-    if (!acc[dateKey]) acc[dateKey] = [];
-    acc[dateKey].push(task);
-    return acc;
-  }, {});
-
-  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[5vh] backdrop-blur-sm"
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.98 }}
-            transition={{ type: "spring", stiffness: 500, damping: 35 }}
-            className="flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-2xl dark:border-white/[0.08] dark:bg-zinc-900"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-200/60 px-6 py-4 dark:border-white/[0.06]">
-              <div>
-                <h2 className="text-base font-bold tracking-tight text-slate-900 dark:text-zinc-100">
-                  Historico de Tarefas
-                </h2>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">
-                  {completed.length} concluida(s)
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-              >
-                <X size={16} strokeWidth={1.5} />
-              </button>
-            </div>
-
-            <div className="flex shrink-0 gap-3 border-b border-slate-100/80 px-6 py-3 dark:border-white/[0.04]">
-              <div className="relative flex-1">
-                <Search
-                  size={14}
-                  strokeWidth={1.5}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 dark:text-zinc-600"
-                />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar..."
-                  className="w-full rounded-lg border border-slate-200/60 bg-slate-50 py-2 pl-9 pr-3 text-xs font-medium text-slate-700 outline-none placeholder:text-slate-300 focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300 dark:placeholder:text-zinc-600"
-                />
-              </div>
-              <input
-                type="date"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="rounded-lg border border-slate-200/60 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-white/[0.06] dark:bg-zinc-800 dark:text-zinc-300"
-              />
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto scrollbar-none px-6 py-4">
-              {sortedDates.length === 0 && (
-                <p className="py-8 text-center text-xs font-medium text-slate-300 dark:text-zinc-600">
-                  Nenhuma tarefa encontrada.
-                </p>
-              )}
-              {sortedDates.map((dateKey) => (
-                <div key={dateKey} className="mb-4">
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">
-                    {dateKey !== "Sem data"
-                      ? new Date(dateKey + "T00:00:00").toLocaleDateString(
-                          "pt-BR",
-                          {
-                            weekday: "short",
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          }
-                        )
-                      : dateKey}
-                  </p>
-                  <div className="space-y-1">
-                    {grouped[dateKey].map((task) => (
-                      <CompletedRow
-                        key={task.id}
-                        task={task}
-                        onToggle={() => onToggle(task)}
-                        onDelete={() => onDelete(task.id)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
   );
 }

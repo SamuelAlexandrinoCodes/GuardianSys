@@ -231,7 +231,7 @@ export function TaskSideSheet({ task, onClose, onRefresh, onColorChange }: TaskS
                   if (onColorChange && task) {
                     onColorChange(task.id, newColor);
                   } else if (task) {
-                    await api.updateTask(task.id, { color: newColor === null ? "" : newColor });
+                    await api.updateTask(task.id, { color: newColor ?? "" });
                     onRefresh();
                   }
                 }}

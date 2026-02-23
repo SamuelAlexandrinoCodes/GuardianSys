@@ -398,8 +398,8 @@ def update_task(task_id: int, payload: TaskUpdate, background_tasks: BackgroundT
                 t.repeat_interval_days = payload.repeat_interval_days
             else:
                 t.repeat_interval_days = None
-        if payload.color is not None:
-            t.color = payload.color.strip() or None
+        if "color" in payload.model_fields_set:
+            t.color = (payload.color or "").strip() or None
         if payload.in_agenda is not None:
             t.in_agenda = payload.in_agenda
         if payload.is_important is not None:
