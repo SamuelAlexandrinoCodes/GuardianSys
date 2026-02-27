@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Check,
   Plus,
@@ -49,9 +49,16 @@ export function TaskSideSheet({ task, onClose, onRefresh, onColorChange }: TaskS
   const [isImportant, setIsImportant] = useState(false);
   const [stepInput, setStepInput] = useState("");
   const [reminderExpiredFeedback, setReminderExpiredFeedback] = useState(false);
+  const prevTaskIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!task) return;
+    if (!task) {
+      prevTaskIdRef.current = null;
+      return;
+    }
+    if (prevTaskIdRef.current === task.id) return;
+    prevTaskIdRef.current = task.id;
+
     setTitle(task.title);
     setStartDate(task.start_date || "");
     setDueDate(task.due_date || "");

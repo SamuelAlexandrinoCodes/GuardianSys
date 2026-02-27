@@ -82,6 +82,13 @@ class TaskList(SQLModel, table=True):
     order_index: int = Field(default=0)
 
 
+class TaskUIPreferences(SQLModel, table=True):
+    """Preferências de UI das tarefas (grupos, ordem das bolhas)."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    key: str = Field(unique=True, index=True)
+    value: str = Field(default="[]")
+
+
 class TaskStep(SQLModel, table=True):
     """Subtarefa (step) de uma Task."""
     id: Optional[int] = Field(default=None, primary_key=True)

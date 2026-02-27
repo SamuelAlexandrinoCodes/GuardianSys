@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp, History } from "lucide-react";
-import type { Task } from "../../../types";
-import { CompletedRow } from "../HistoryOverlay";
+import type { Task } from "../../../../types";
+import { CompletedRow } from "../../HistoryOverlay";
 
 /* ========================================================================== */
 /* TaskCompletedDock                                                          */

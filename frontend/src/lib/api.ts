@@ -38,6 +38,16 @@ export const api = {
       method: "DELETE",
     }),
 
+  getTaskUI: () =>
+    request<{ task_groups: Array<{ id: string; name: string; expanded: boolean; taskIds: number[]; listIds: number[] }>; bubble_order: string[] }>(
+      "/administrativo/task-ui"
+    ),
+  saveTaskUI: (data: { task_groups?: Array<{ id: string; name: string; expanded: boolean; taskIds: number[]; listIds: number[] }>; bubble_order?: string[] }) =>
+    request<{ ok: boolean }>("/administrativo/task-ui", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
   // Tarefas
   createTask: (data: Record<string, unknown>) =>
     request<import("../types").Task>("/administrativo/task", {

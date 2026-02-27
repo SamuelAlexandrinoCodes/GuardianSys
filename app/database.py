@@ -60,6 +60,18 @@ def create_db_and_tables():
             "ALTER TABLE task ADD COLUMN list_id INTEGER REFERENCES tasklist(id)",
             "ALTER TABLE task ADD COLUMN is_assigned INTEGER DEFAULT 0",
         ]
+        # Cria tabela taskuipreferences se não existir (SQLite)
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS taskuipreferences (
+                    id INTEGER PRIMARY KEY,
+                    key VARCHAR NOT NULL UNIQUE,
+                    value TEXT DEFAULT '[]'
+                )
+            """))
+            conn.commit()
+        except Exception:
+            conn.rollback()
         for col_sql in migs:
             try:
                 conn.execute(text(col_sql))

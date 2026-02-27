@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select, or_
 
 from app.database import engine
-from app.models import Task, TaskStep, TaskList, Meeting, Payable, Reservation, Unit, Resident
+from app.models import Task, TaskStep, TaskList, TaskUIPreferences, Meeting, Payable, Reservation, Unit, Resident
 from app.config import get_config, run_backup_job, STORAGE_DIR
 from app.smart_dates import resolve_date_or_smart, resolve_datetime_or_smart
 from app.recurrence import run_recreate_recurring_tasks
@@ -493,6 +493,134 @@ def delete_task_list(list_id: int, background_tasks: BackgroundTasks):
             session.delete(tl)
             session.commit()
             background_tasks.add_task(run_backup_job)
+    return JSONResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Task UI (grupos e ordem das bolhas)
+# ---------------------------------------------------------------------------
+
+TASK_UI_GROUPS_KEY = "task_groups"
+TASK_UI_BUBBLE_ORDER_KEY = "bubble_order"
+
+
+def _list_ids_in_groups(groups: list) -> set:
+    """Retorna set de list IDs que pertencem a algum grupo."""
+    ids = set()
+    for g in groups:
+        if not isinstance(g, dict):
+            continue
+        arr = g.get("listIds") or g.get("list_ids") or []
+        for lid in arr if isinstance(arr, list) else []:
+            try:
+                ids.add(int(lid))
+            except (TypeError, ValueError):
+                pass
+    return ids
+
+
+def _sanitize_bubble_order(bubble_order: list, groups: list) -> list:
+    """Remove list:X de bubble_order quando X está em algum grupo."""
+    in_groups = _list_ids_in_groups(groups)
+    return [
+        x for x in bubble_order
+        if not (isinstance(x, str) and x.startswith("list:"))
+        or int((x.split(":") or ["0"])[1] or 0) not in in_groups
+    ]
+
+
+@router.get("/administrativo/task-ui")
+def get_task_ui():
+    """Retorna grupos e ordem das bolhas persistidos no banco."""
+    import json
+
+    with Session(engine) as session:
+        groups_row = session.exec(
+            select(TaskUIPreferences).where(TaskUIPreferences.key == TASK_UI_GROUPS_KEY)
+        ).first()
+        order_row = session.exec(
+            select(TaskUIPreferences).where(TaskUIPreferences.key == TASK_UI_BUBBLE_ORDER_KEY)
+        ).first()
+
+        groups = []
+        bubble_order = []
+        try:
+            if groups_row and groups_row.value:
+                groups = json.loads(groups_row.value)
+            if order_row and order_row.value:
+                bubble_order = json.loads(order_row.value)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        sanitized = _sanitize_bubble_order(bubble_order, groups)
+        if len(sanitized) != len(bubble_order):
+            order_row = session.exec(
+                select(TaskUIPreferences).where(TaskUIPreferences.key == TASK_UI_BUBBLE_ORDER_KEY)
+            ).first()
+            if order_row:
+                order_row.value = json.dumps(sanitized)
+                session.add(order_row)
+            else:
+                session.add(
+                    TaskUIPreferences(key=TASK_UI_BUBBLE_ORDER_KEY, value=json.dumps(sanitized))
+                )
+            session.commit()
+        return JSONResponse({"task_groups": groups, "bubble_order": sanitized})
+
+
+class TaskUISave(BaseModel):
+    task_groups: Optional[List[dict]] = None
+    bubble_order: Optional[List[str]] = None
+
+
+@router.patch("/administrativo/task-ui")
+def save_task_ui(payload: TaskUISave):
+    """Persiste grupos e/ou ordem das bolhas. Listas em grupos nunca são salvas em bubble_order."""
+    import json
+
+    with Session(engine) as session:
+        groups_to_use = payload.task_groups
+        if groups_to_use is None:
+            row = session.exec(
+                select(TaskUIPreferences).where(TaskUIPreferences.key == TASK_UI_GROUPS_KEY)
+            ).first()
+            if row and row.value:
+                try:
+                    groups_to_use = json.loads(row.value)
+                except (json.JSONDecodeError, TypeError):
+                    groups_to_use = []
+            else:
+                groups_to_use = []
+
+        if payload.task_groups is not None:
+            val = session.exec(
+                select(TaskUIPreferences).where(TaskUIPreferences.key == TASK_UI_GROUPS_KEY)
+            ).first()
+            if val:
+                val.value = json.dumps(payload.task_groups)
+                session.add(val)
+            else:
+                session.add(
+                    TaskUIPreferences(key=TASK_UI_GROUPS_KEY, value=json.dumps(payload.task_groups))
+                )
+            groups_to_use = payload.task_groups
+
+        if payload.bubble_order is not None:
+            sanitized = _sanitize_bubble_order(payload.bubble_order, groups_to_use)
+            val = session.exec(
+                select(TaskUIPreferences).where(TaskUIPreferences.key == TASK_UI_BUBBLE_ORDER_KEY)
+            ).first()
+            if val:
+                val.value = json.dumps(sanitized)
+                session.add(val)
+            else:
+                session.add(
+                    TaskUIPreferences(
+                        key=TASK_UI_BUBBLE_ORDER_KEY, value=json.dumps(sanitized)
+                    )
+                )
+
+        session.commit()
     return JSONResponse({"ok": True})
 
 

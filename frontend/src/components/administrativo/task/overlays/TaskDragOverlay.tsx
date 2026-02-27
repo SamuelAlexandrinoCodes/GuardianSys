@@ -4,12 +4,8 @@ import {
   Bell,
   Repeat,
 } from "lucide-react";
-import type { Task } from "../../../types";
-import { colorHexMap } from "./taskHelpers";
-
-/* ========================================================================== */
-/* TaskDragOverlay                                                            */
-/* ========================================================================== */
+import type { Task } from "../../../../types";
+import { colorHexMap } from "../helpers/taskHelpers";
 
 export interface TaskDragOverlayProps {
   task: Task;
@@ -27,9 +23,8 @@ function TaskCardClone({ task }: { task: Task }) {
       style={{
         borderLeftWidth: 5,
         borderLeftColor: task.color ? (colorHexMap[task.color] ?? "transparent") : "transparent",
-        // Sombras densas e inclinação (Duolingo effect) para simular objeto físico
         boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.05)",
-        transform: "scale(1.02) rotate(1.5deg)", 
+        transform: "scale(1.02) rotate(1.5deg)",
         transition: "transform 0.15s cubic-bezier(0.2, 0, 0, 1)"
       }}
     >
@@ -90,7 +85,10 @@ function TaskCardClone({ task }: { task: Task }) {
   );
 }
 
-/** Pílula usada quando a tarefa está sobre a zona de bolhas */
+const PILL_WIDTH = 140;
+const PILL_HEIGHT = 32;
+
+/** Pílula usada quando a tarefa está sobre a zona de bolhas (posição controlada pelo modificador no TaskBoard) */
 function TaskPillClone({ task }: { task: Task }) {
   const firstWord = task.title.trim().split(/\s+/)[0] || task.title;
   const pillLabel = firstWord ? `${firstWord}...` : "Mover";
@@ -98,10 +96,10 @@ function TaskPillClone({ task }: { task: Task }) {
   return (
     <div
       className="pointer-events-none flex items-center justify-center overflow-hidden rounded-full border border-zinc-700 bg-zinc-800"
-      style={{ 
-        width: 140, 
-        height: 32,
-        boxShadow: "0 20px 40px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.1)", 
+      style={{
+        width: PILL_WIDTH,
+        height: PILL_HEIGHT,
+        boxShadow: "0 20px 40px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.1)",
       }}
     >
       <div className="flex w-full items-center justify-center gap-1.5 px-3 text-zinc-300">

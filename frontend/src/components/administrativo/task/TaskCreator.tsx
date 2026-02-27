@@ -23,7 +23,7 @@ import {
   type TaskFilterValue,
   repeatOptions,
   pad2,
-} from "./taskHelpers";
+} from "./helpers/taskHelpers";
 
 /* ========================================================================== */
 /* StaticActionButton                                                         */
@@ -67,9 +67,10 @@ function StaticActionButton({
 export interface TaskCreatorProps {
   taskFilter: TaskFilterValue;
   onRefresh: () => void;
+  onTaskCreated?: (taskId: number) => void;
 }
 
-export function TaskCreator({ taskFilter, onRefresh }: TaskCreatorProps) {
+export function TaskCreator({ taskFilter, onRefresh, onTaskCreated }: TaskCreatorProps) {
   const [quickInput, setQuickInput] = useState("");
   const [quickMeta, setQuickMeta] = useState<QuickMeta>(emptyMeta);
   const [activePopover, setActivePopover] = useState<
@@ -245,9 +246,10 @@ export function TaskCreator({ taskFilter, onRefresh }: TaskCreatorProps) {
     setQuickInput("");
     setQuickMeta(emptyMeta);
     setActivePopover(null);
-    await api.createTask(payload);
+    const created = await api.createTask(payload);
     onRefresh();
-  }, [quickInput, quickMeta, taskFilter, onRefresh, todayStr]);
+    onTaskCreated?.(created.id);
+  }, [quickInput, quickMeta, taskFilter, onRefresh, onTaskCreated, todayStr]);
 
   const hasStartDate = !!quickMeta.startDate;
   const hasDate = !!quickMeta.dueDate;

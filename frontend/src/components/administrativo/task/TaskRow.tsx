@@ -18,7 +18,7 @@ import {
   Star,
 } from "lucide-react";
 import type { Task, TaskStep } from "../../../types";
-import { colorHexMap, colorOptions } from "./taskHelpers";
+import { colorHexMap, colorOptions } from "./helpers/taskHelpers";
 import { TaskContextMenu } from "./TaskContextMenu";
 
 /* ========================================================================== */
@@ -111,6 +111,8 @@ export interface TaskRowProps {
   onDeleteStep: (task: Task, stepId: number) => void;
   onColorChange: (color: string | null) => void;
   lists: { id: number; name: string }[];
+  hideGhostWhenOverBubbles?: boolean;
+  isInGroup?: boolean;
 }
 
 export function TaskRow({
@@ -128,13 +130,14 @@ export function TaskRow({
   onDeleteStep,
   onColorChange,
   lists,
+  hideGhostWhenOverBubbles = false,
+  isInGroup = false,
 }: TaskRowProps) {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
-    transition,
     isDragging,
   } = useSortable({ id: task.id });
 
@@ -192,9 +195,7 @@ export function TaskRow({
 
   const sortableStyle: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
-    transition: transition
-      ? `${transition} cubic-bezier(0.34, 1.56, 0.64, 1)`
-      : undefined,
+    transition: "none",
     borderLeftWidth: 5,
     borderLeftColor: task.color ? (colorHexMap[task.color] ?? "transparent") : "transparent",
     ...(isDragging &&
@@ -211,12 +212,17 @@ export function TaskRow({
   const rowContent = (
     <div
       ref={setRefs}
-      style={sortableStyle}
+      style={{
+        ...sortableStyle,
+        ...(isDragging && hideGhostWhenOverBubbles && { visibility: "hidden" as const }),
+      }}
       {...attributes}
       {...listeners}
-      className={`group overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm transition-shadow select-none dark:border-white/[0.06] dark:bg-zinc-900 hover:shadow-md ${
-        isDragging ? "opacity-95 shadow-xl" : ""
-      }`}
+      className={`group overflow-hidden rounded-2xl border border-slate-200/60 shadow-sm transition-shadow select-none dark:border-white/[0.06] hover:shadow-md ${
+        isInGroup
+          ? "bg-indigo-50/60 dark:bg-indigo-950/30"
+          : "bg-white dark:bg-zinc-900"
+      } ${isDragging && !hideGhostWhenOverBubbles ? "opacity-95 shadow-xl" : ""}`}
     >
       <div
         className="relative flex items-start gap-2.5 px-4 py-2.5"

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   CheckSquare,
@@ -9,7 +9,9 @@ import {
 } from "lucide-react";
 import type { AdministrativoData } from "../types";
 import { api } from "../lib/api";
+import type { Task } from "../types";
 import { TaskBoard, type TaskFilterValue } from "../components/administrativo/TaskBoard";
+import { TaskSideSheet } from "../components/administrativo/task";
 import { MeetingAgenda } from "../components/administrativo/MeetingAgenda";
 import { PayableList } from "../components/administrativo/PayableList";
 import { FinancePage } from "./FinancePage";
@@ -26,17 +28,21 @@ type TabId = (typeof tabs)[number]["id"];
 export function AdministrativoPage() {
   const [activeTab, setActiveTab] = useState<TabId>("tarefas");
   const [taskFilter, setTaskFilter] = useState<TaskFilterValue>("meu_dia");
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [data, setData] = useState<AdministrativoData | null>(null);
   const [lists, setLists] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const needsAdminData = activeTab !== "financeiro";
+  const prevActiveTabRef = useRef(activeTab);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (showLoader = false) => {
     if (!needsAdminData) { setLoading(false); return; }
+    if (showLoader) setLoading(true);
     try {
+      const apiFilter = taskFilter.startsWith("group:") ? "geral" : taskFilter;
       const [adminResult, listsResult] = await Promise.all([
-        api.getAdministrativo(activeTab, taskFilter),
+        api.getAdministrativo(activeTab, apiFilter),
         activeTab === "tarefas" ? api.getTaskLists() : Promise.resolve([]),
       ]);
       setData(adminResult);
@@ -51,13 +57,26 @@ export function AdministrativoPage() {
   }, [activeTab, needsAdminData, taskFilter]);
 
   useEffect(() => {
-    setLoading(true);
-    fetchData();
+    const tabChanged = prevActiveTabRef.current !== activeTab;
+    prevActiveTabRef.current = activeTab;
+    const showLoader = tabChanged || data === null;
+    fetchData(showLoader);
   }, [fetchData]);
 
   const handleRefresh = useCallback(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleColorChange = useCallback(
+    async (taskId: number, color: string | null) => {
+      await api.updateTask(taskId, { color: color ?? "" });
+      handleRefresh();
+      if (activeTask?.id === taskId) {
+        setActiveTask((t) => (t ? { ...t, color } : null));
+      }
+    },
+    [handleRefresh, activeTask?.id]
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -117,6 +136,8 @@ export function AdministrativoPage() {
                 lists={lists}
                 onListsChange={setLists}
                 onRefresh={handleRefresh}
+                activeTask={activeTask}
+                onActiveTaskChange={setActiveTask}
               />
             )}
             {activeTab === "reunioes" && (
@@ -130,6 +151,14 @@ export function AdministrativoPage() {
                 payables={data.payables}
                 totalOpen={data.total_open}
                 onRefresh={handleRefresh}
+              />
+            )}
+            {activeTab === "tarefas" && (
+              <TaskSideSheet
+                task={activeTask}
+                onClose={() => setActiveTask(null)}
+                onRefresh={handleRefresh}
+                onColorChange={handleColorChange}
               />
             )}
           </div>
